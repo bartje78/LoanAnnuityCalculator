@@ -1,0 +1,24 @@
+{
+  "MSBuild": {
+    "LoadProjectsOnDemand": false,
+    "EnablePackageAutoRestore": true
+  },
+  "FormattingOptions": {
+    "EnableEditorConfigSupport": true
+  },
+  "FileOptions": {
+    "SystemExcludeSearchPatterns": [
+      "**/bin/**",
+      "**/obj/**",
+      "**/.git/**"
+    ],
+    "ExcludeSearchPatterns": []
+  },
+  "RoslynExtensionsOptions": {
+    "EnableAnalyzersSupport": true,
+    "LocationPaths": []
+  },
+  "Sdk": {
+    "IncludePrereleases": false
+  }
+}
