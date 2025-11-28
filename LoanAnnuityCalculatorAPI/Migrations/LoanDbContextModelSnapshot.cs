@@ -17,6 +17,74 @@ namespace LoanAnnuityCalculatorAPI.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.AddOnPermission", b =>
+                {
+                    b.Property<int>("AddOnPermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AddOnId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PermissionKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PermissionName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("AddOnPermissionId");
+
+                    b.HasIndex("AddOnId");
+
+                    b.ToTable("AddOnPermissions");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.AddOnPricingTier", b =>
+                {
+                    b.Property<int>("TierId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AddOnId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AnnualPricePerAssignment")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DiscountPercentage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MaxQuantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinQuantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("MonthlyPricePerAssignment")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TierId");
+
+                    b.HasIndex("AddOnId");
+
+                    b.ToTable("AddOnPricingTiers");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -44,6 +112,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSystemAdmin")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastLoginAt")
@@ -79,6 +150,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("INTEGER");
 
@@ -94,6 +168,8 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -178,6 +254,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<decimal?>("FirstMortgageAmount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("FundId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("HouseNumber")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
@@ -211,15 +290,22 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("CollateralId");
 
                     b.HasIndex("AssetUniqueId")
                         .IsUnique()
                         .HasFilter("[AssetUniqueId] IS NOT NULL");
 
+                    b.HasIndex("FundId");
+
                     b.HasIndex("LandRegistryCode")
                         .IsUnique()
                         .HasFilter("[LandRegistryCode] IS NOT NULL");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("PostalCode", "HouseNumber")
                         .IsUnique()
@@ -430,6 +516,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<int?>("FirstLienTenorMonths")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsProForma")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("LongTermAssets")
                         .HasColumnType("TEXT");
 
@@ -484,6 +573,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("FundId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("HouseNumber")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -527,7 +619,14 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("DebtorID");
+
+                    b.HasIndex("FundId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("DebtorDetails");
                 });
@@ -559,6 +658,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<decimal>("InterestExpense")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsProForma")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("NetIncome")
                         .HasColumnType("TEXT");
 
@@ -569,6 +671,9 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Revenue")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RevenueSectorBreakdown")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TaxExpense")
@@ -641,6 +746,44 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.HasIndex("PLId");
 
                     b.ToTable("RevenueDetails");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Fund", b =>
+                {
+                    b.Property<int>("FundId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FundCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("FundId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("Funds");
                 });
 
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.InvoiceSettings", b =>
@@ -726,16 +869,28 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("Id");
 
+                    b.Property<decimal?>("AmountDrawn")
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal>("AnnualInterestRate")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("CreditLimit")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("DebtorID")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FundId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("InterestOnlyMonths")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("LoanAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("ManualOutstandingAmount")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RedemptionSchedule")
@@ -748,12 +903,19 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<string>("Status")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("TenorMonths")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("LoanID");
 
                     b.HasIndex("DebtorID");
+
+                    b.HasIndex("FundId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Loans");
                 });
@@ -917,6 +1079,129 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.ToTable("LoanPayments");
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.PaymentPlan", b =>
+                {
+                    b.Property<int>("PaymentPlanId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowAdvancedAnalytics")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowApiAccess")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowCustomBranding")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowExport")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowImport")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowMonteCarloSimulation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowMultipleFunds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowPortfolioAnalysis")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowReporting")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AnnualPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxDebtors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxFunds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxLoans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxUsers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("MonthlyPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StorageLimitMB")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SupportLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PaymentPlanId");
+
+                    b.ToTable("PaymentPlans");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.PlanAddOn", b =>
+                {
+                    b.Property<int>("AddOnId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AnnualPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FeatureKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("MonthlyPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("AddOnId");
+
+                    b.ToTable("PlanAddOns");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Ratios.CreditRatingThreshold", b =>
                 {
                     b.Property<int>("Id")
@@ -981,6 +1266,42 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Property<decimal>("DefaultRevenueVolatility")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("SectorVolatilityAgriculture")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityConstruction")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityFinancialServices")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityHealthcare")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityHospitality")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityManufacturing")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityOther")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityProfessionalServices")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityRealEstate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityRetail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityTechnology")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SectorVolatilityTransportation")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SettingName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1024,6 +1345,153 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.ToTable("PropertyTypeParameters");
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorCollateralCorrelation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("CorrelationCoefficient")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ModelSettingsId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PropertyType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sector")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModelSettingsId");
+
+                    b.ToTable("SectorCollateralCorrelations");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorCorrelation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("CorrelationCoefficient")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ModelSettingsId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sector1")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sector2")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModelSettingsId");
+
+                    b.ToTable("SectorCorrelations");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ColorCode")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DefaultVolatility")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("ExpectedGrowth")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ModelSettingsId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SectorCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModelSettingsId");
+
+                    b.ToTable("SectorDefinitions");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.StandardRevenueCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sector")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StandardRevenueCategories");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TariffSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -1042,6 +1510,403 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TariffSettings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Tenant", b =>
+                {
+                    b.Property<int>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DatabaseKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantAddOn", b =>
+                {
+                    b.Property<int>("TenantAddOnId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AddOnId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("CustomAnnualPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("CustomMonthlyPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EnabledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("TenantAddOnId");
+
+                    b.HasIndex("AddOnId");
+
+                    b.HasIndex("TenantId", "AddOnId")
+                        .IsUnique();
+
+                    b.ToTable("TenantAddOns");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantCustomPricing", b =>
+                {
+                    b.Property<int>("CustomPricingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("BaseAnnualPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("BaseMonthlyPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("CustomMaxDebtors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxFunds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxLoans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxUsers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomStorageLimitMB")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("MultiYearDiscount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PricePerUser")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("CustomPricingId");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantCustomPricings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantPricingSummary", b =>
+                {
+                    b.Property<int>("SummaryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ActiveUserCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AgreedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgreedById")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgreedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("AnnualAddOnCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("AnnualUserCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CalculatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MonthlyAddOnCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MonthlyUserCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TenantAgreed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalAnnual")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TotalMonthly")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SummaryId");
+
+                    b.HasIndex("AgreedById");
+
+                    b.HasIndex("TenantId", "CalculatedAt");
+
+                    b.ToTable("TenantPricingSummaries");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantSubscription", b =>
+                {
+                    b.Property<int>("SubscriptionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BillingPeriod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("CustomAllowAdvancedAnalytics")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("CustomAllowApiAccess")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("CustomAllowMonteCarloSimulation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("CustomAllowPortfolioAnalysis")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("CustomAllowReporting")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxDebtors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxFunds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxLoans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomMaxUsers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CustomStorageLimitMB")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextBillingDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PaymentPlanId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("TrialEndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SubscriptionId");
+
+                    b.HasIndex("PaymentPlanId");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantSubscriptions");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UsageTracking", b =>
+                {
+                    b.Property<int>("UsageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ActiveUserCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ApiCallsCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CollateralCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DebtorCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ExportsCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FundCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ImportsCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LoanCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MonteCarloSimulationsRun")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("RecordDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReportsGenerated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("StorageUsedMB")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalUserCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("UsageId");
+
+                    b.HasIndex("TenantId", "Year", "Month");
+
+                    b.ToTable("UsageTrackings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserAddOn", b =>
+                {
+                    b.Property<int>("UserAddOnId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AddOnId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssignedById")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssignedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserAddOnId");
+
+                    b.HasIndex("AddOnId");
+
+                    b.HasIndex("AssignedById");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId", "AddOnId", "TenantId");
+
+                    b.ToTable("UserAddOns");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserFundAccess", b =>
+                {
+                    b.Property<int>("UserFundAccessId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FundId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserFundAccessId");
+
+                    b.HasIndex("FundId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserFundAccesses");
                 });
 
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserPreference", b =>
@@ -1075,6 +1940,38 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .IsUnique();
 
                     b.ToTable("UserPreferences");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserPricingTier", b =>
+                {
+                    b.Property<int>("TierId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("BaseAnnualPricePerUser")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("BaseMonthlyPricePerUser")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DiscountPercentage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MaxUsers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinUsers")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("TierId");
+
+                    b.ToTable("UserPricingTiers");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -1205,6 +2102,38 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.AddOnPermission", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.PlanAddOn", "AddOn")
+                        .WithMany("Permissions")
+                        .HasForeignKey("AddOnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AddOn");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.AddOnPricingTier", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.PlanAddOn", "AddOn")
+                        .WithMany("PricingTiers")
+                        .HasForeignKey("AddOnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AddOn");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.ApplicationUser", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany("Users")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.BalanceSheetLineItem", b =>
                 {
                     b.HasOne("LoanAnnuityCalculatorAPI.Models.Debtor.DebtorBalanceSheet", "DebtorBalanceSheet")
@@ -1285,6 +2214,17 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Navigation("DebtorPL");
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Fund", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany("Funds")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Loan.Loan", b =>
                 {
                     b.HasOne("LoanAnnuityCalculatorAPI.Models.Debtor.DebtorDetails", "DebtorDetails")
@@ -1346,6 +2286,168 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .IsRequired();
 
                     b.Navigation("ModelSettings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorCollateralCorrelation", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Settings.ModelSettings", "ModelSettings")
+                        .WithMany("SectorCollateralCorrelations")
+                        .HasForeignKey("ModelSettingsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ModelSettings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorCorrelation", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Settings.ModelSettings", "ModelSettings")
+                        .WithMany("SectorCorrelations")
+                        .HasForeignKey("ModelSettingsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ModelSettings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.SectorDefinition", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Settings.ModelSettings", "ModelSettings")
+                        .WithMany("SectorDefinitions")
+                        .HasForeignKey("ModelSettingsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ModelSettings");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantAddOn", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.PlanAddOn", "AddOn")
+                        .WithMany("TenantAddOns")
+                        .HasForeignKey("AddOnId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AddOn");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantCustomPricing", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithOne()
+                        .HasForeignKey("LoanAnnuityCalculatorAPI.Models.TenantCustomPricing", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantPricingSummary", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.ApplicationUser", "AgreedBy")
+                        .WithMany()
+                        .HasForeignKey("AgreedById");
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AgreedBy");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TenantSubscription", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.PaymentPlan", "PaymentPlan")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("PaymentPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithOne("Subscription")
+                        .HasForeignKey("LoanAnnuityCalculatorAPI.Models.TenantSubscription", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PaymentPlan");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UsageTracking", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany("UsageHistory")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserAddOn", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.PlanAddOn", "AddOn")
+                        .WithMany("UserAddOns")
+                        .HasForeignKey("AddOnId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.ApplicationUser", "AssignedBy")
+                        .WithMany()
+                        .HasForeignKey("AssignedById");
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.ApplicationUser", "User")
+                        .WithMany("AddOns")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AddOn");
+
+                    b.Navigation("AssignedBy");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserFundAccess", b =>
+                {
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.Fund", "Fund")
+                        .WithMany("UserAccesses")
+                        .HasForeignKey("FundId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LoanAnnuityCalculatorAPI.Models.ApplicationUser", "User")
+                        .WithMany("FundAccesses")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fund");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.UserPreference", b =>
@@ -1410,6 +2512,13 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.ApplicationUser", b =>
+                {
+                    b.Navigation("AddOns");
+
+                    b.Navigation("FundAccesses");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Collateral", b =>
                 {
                     b.Navigation("LoanCollaterals");
@@ -1436,14 +2545,41 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Navigation("RevenueDetails");
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Fund", b =>
+                {
+                    b.Navigation("UserAccesses");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Loan.Loan", b =>
                 {
                     b.Navigation("LoanCollaterals");
                 });
 
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.PaymentPlan", b =>
+                {
+                    b.Navigation("Subscriptions");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.PlanAddOn", b =>
+                {
+                    b.Navigation("Permissions");
+
+                    b.Navigation("PricingTiers");
+
+                    b.Navigation("TenantAddOns");
+
+                    b.Navigation("UserAddOns");
+                });
+
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Settings.ModelSettings", b =>
                 {
                     b.Navigation("PropertyTypeParameters");
+
+                    b.Navigation("SectorCollateralCorrelations");
+
+                    b.Navigation("SectorCorrelations");
+
+                    b.Navigation("SectorDefinitions");
                 });
 
             modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.TariffSettings", b =>
@@ -1451,6 +2587,17 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.Navigation("CreditRatings");
 
                     b.Navigation("LtvTiers");
+                });
+
+            modelBuilder.Entity("LoanAnnuityCalculatorAPI.Models.Tenant", b =>
+                {
+                    b.Navigation("Funds");
+
+                    b.Navigation("Subscription");
+
+                    b.Navigation("UsageHistory");
+
+                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

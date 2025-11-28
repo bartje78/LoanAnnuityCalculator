@@ -61,7 +61,8 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                     Email = user.Email ?? string.Empty,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    Roles = roles.ToList()
+                    Roles = roles.ToList(),
+                    IsSystemAdmin = user.IsSystemAdmin
                 });
             }
             catch (Exception ex)
@@ -255,6 +256,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public List<string> Roles { get; set; } = new();
+        public bool IsSystemAdmin { get; set; }
     }
 
     public class RegisterRequest

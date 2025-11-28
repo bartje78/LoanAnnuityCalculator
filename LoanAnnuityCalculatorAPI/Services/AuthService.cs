@@ -38,6 +38,18 @@ namespace LoanAnnuityCalculatorAPI.Services
                 new Claim("LastName", user.LastName)
             };
 
+            // Add tenant ID claim - CRITICAL for data isolation
+            if (user.TenantId.HasValue)
+            {
+                claims.Add(new Claim("TenantId", user.TenantId.Value.ToString()));
+            }
+
+            // Add system admin flag
+            if (user.IsSystemAdmin)
+            {
+                claims.Add(new Claim("IsSystemAdmin", "true"));
+            }
+
             // Add roles as claims
             foreach (var role in userRoles)
             {

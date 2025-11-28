@@ -10,6 +10,18 @@ namespace LoanAnnuityCalculatorAPI.Models
         [Key]
         public int CollateralId { get; set; }
 
+        /// <summary>
+        /// Tenant this collateral belongs to - CRITICAL for data isolation
+        /// </summary>
+        [Required]
+        public int TenantId { get; set; }
+
+        /// <summary>
+        /// Fund this collateral is associated with
+        /// </summary>
+        [Required]
+        public int FundId { get; set; }
+
         [Required]
         [StringLength(100)]
         public string CollateralType { get; set; } = string.Empty; // e.g., "1st Mortgage", "2nd Mortgage", "Guarantee", "Unsecured"

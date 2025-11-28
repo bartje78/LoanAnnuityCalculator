@@ -5,6 +5,7 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public int Id { get; set; }
         public int DebtorID { get; set; }
         public int BookYear { get; set; }
+        public bool IsProForma { get; set; }
         
         // Summary totals
         public decimal CurrentAssets { get; set; }

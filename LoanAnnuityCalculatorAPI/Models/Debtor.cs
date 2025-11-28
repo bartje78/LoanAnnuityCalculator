@@ -11,6 +11,18 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
     {
         [Key]
         public int DebtorID { get; set; }
+
+        /// <summary>
+        /// Tenant this debtor belongs to - CRITICAL for data isolation
+        /// </summary>
+        [Required]
+        public int TenantId { get; set; }
+
+        /// <summary>
+        /// Fund this debtor is associated with
+        /// </summary>
+        [Required]
+        public int FundId { get; set; }
         
         // Company information
         public string DebtorName { get; set; } = string.Empty;
@@ -65,6 +77,11 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
 
         public int BookYear { get; set; }
         
+        /// <summary>
+        /// Indicates whether this is a projected/pro forma statement (true) or actual/realized (false)
+        /// </summary>
+        public bool IsProForma { get; set; } = false;
+        
         // Updated field names to match frontend
         public decimal Revenue { get; set; }
         public decimal OperatingExpenses { get; set; }
@@ -78,6 +95,12 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public decimal? EBITDA { get; set; }
         public decimal? InterestCost { get; set; }
         public decimal? NetProfit { get; set; }
+        
+        /// <summary>
+        /// JSON field storing revenue breakdown by sector (for Monte Carlo correlations)
+        /// Format: { "Manufacturing": 50000, "Retail": 30000, "Technology": 20000 }
+        /// </summary>
+        public string? RevenueSectorBreakdown { get; set; }
 
         public required DebtorDetails DebtorDetails { get; set; }
         
@@ -94,6 +117,11 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public int DebtorID { get; set; }
 
         public int BookYear { get; set; }
+        
+        /// <summary>
+        /// Indicates whether this is a projected/pro forma statement (true) or actual/realized (false)
+        /// </summary>
+        public bool IsProForma { get; set; } = false;
         
         // Summary totals (calculated from line items)
         public decimal CurrentAssets { get; set; }
@@ -119,6 +147,7 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public int Id { get; set; }
         public int DebtorID { get; set; }
         public int BookYear { get; set; }
+        public bool IsProForma { get; set; }
         public decimal CurrentAssets { get; set; }
         public decimal LongTermAssets { get; set; }
         public decimal CurrentLiabilities { get; set; }
@@ -138,6 +167,7 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public int Id { get; set; }
         public int DebtorID { get; set; }
         public int BookYear { get; set; }
+        public bool IsProForma { get; set; }
         public decimal Revenue { get; set; }
         public decimal OperatingExpenses { get; set; }
         public decimal CostOfGoodsSold { get; set; }
@@ -145,5 +175,6 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public decimal InterestExpense { get; set; }
         public decimal TaxExpense { get; set; }
         public decimal NetIncome { get; set; }
+        public string? RevenueSectorBreakdown { get; set; }
     }
 }

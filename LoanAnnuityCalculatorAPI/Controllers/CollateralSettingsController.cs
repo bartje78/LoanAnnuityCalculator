@@ -4,6 +4,7 @@ using LoanAnnuityCalculatorAPI.Data;
 using LoanAnnuityCalculatorAPI.Models;
 using OfficeOpenXml;
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 
 namespace LoanAnnuityCalculatorAPI.Controllers
 {
@@ -12,10 +13,12 @@ namespace LoanAnnuityCalculatorAPI.Controllers
     public class CollateralSettingsController : ControllerBase
     {
         private readonly LoanDbContext _dbContext;
+        private readonly ILogger<CollateralSettingsController> _logger;
         
-        public CollateralSettingsController(LoanDbContext dbContext)
+        public CollateralSettingsController(LoanDbContext dbContext, ILogger<CollateralSettingsController> logger)
         {
             _dbContext = dbContext;
+            _logger = logger;
         }
 
         // GET: api/CollateralSettings
@@ -265,31 +268,52 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                     .Where(c => c.PropertyType == propertyType && c.AppraisalValue.HasValue && c.AppraisalDate.HasValue)
                     .ToListAsync();
 
+                // Pre-calculate indexed values for all collaterals
+                var collateralIndexedValues = new Dictionary<int, decimal>();
+                foreach (var collateral in collaterals)
+                {
+                    try
+                    {
+                        var indexedValue = await CalculateIndexedValue(propertyType, collateral.AppraisalValue!.Value, collateral.AppraisalDate!.Value);
+                        collateralIndexedValues[collateral.CollateralId] = indexedValue;
+                    }
+                    catch
+                    {
+                        // Fallback to appraisal value if indexing fails
+                        collateralIndexedValues[collateral.CollateralId] = collateral.AppraisalValue!.Value;
+                    }
+                }
+
                 var indexedCollaterals = new List<object>();
 
                 foreach (var collateral in collaterals)
                 {
                     try
                     {
-                        // Use PropertyType for indexing (matches CollateralIndexes data), not CollateralType
-                        var indexedValue = await CalculateIndexedValue(propertyType, collateral.AppraisalValue!.Value, collateral.AppraisalDate!.Value);
+                        var indexedValue = collateralIndexedValues[collateral.CollateralId];
                         
-                        // Calculate effective collateral value based on security type
-                        var effectiveCollateralValue = CalculateEffectiveCollateralValue(indexedValue, collateral);
-                        
-                        // Calculate haircut amount separately
+                        // Calculate haircut amount
                         var haircutAmount = collateral.LiquidityHaircut > 0 
                             ? indexedValue * (collateral.LiquidityHaircut / 100m) 
-                            : 0;
-                        
-                        // First mortgage amount (subordination)
-                        var firstMortgageAmount = collateral.SecurityType == "2nd Mortgage" && collateral.FirstMortgageAmount.HasValue 
-                            ? collateral.FirstMortgageAmount.Value 
                             : 0;
                         
                         // For each loan that uses this collateral
                         foreach (var loanCollateral in collateral.LoanCollaterals)
                         {
+                            // Calculate pro-rata subordination for this specific loan
+                            var proRataSubordination = CalculateProRataSubordination(
+                                collateral, 
+                                loanCollateral.LoanId, 
+                                indexedValue,
+                                collaterals,
+                                collateralIndexedValues);
+                            
+                            // Calculate effective value with pro-rata subordination
+                            var effectiveCollateralValue = CalculateEffectiveCollateralValueWithProRataSubordination(
+                                indexedValue, 
+                                collateral, 
+                                proRataSubordination);
+                            
                             indexedCollaterals.Add(new
                             {
                                 collateralId = collateral.CollateralId,
@@ -308,7 +332,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                             valueChangePercentage = collateral.AppraisalValue.Value > 0 ? 
                                 Math.Round(((indexedValue - collateral.AppraisalValue.Value) / collateral.AppraisalValue.Value) * 100, 2) : 0,
                             haircutAmount = haircutAmount,
-                            subordinationAmount = firstMortgageAmount,
+                            subordinationAmount = proRataSubordination,
                             securityAdjustment = indexedValue - effectiveCollateralValue,
                             priority = loanCollateral.Priority,
                             allocationPercentage = loanCollateral.AllocationPercentage
@@ -534,26 +558,158 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             return $"{date.Year}Q{quarter}";
         }
 
-        private decimal CalculateEffectiveCollateralValue(decimal indexedValue, Collateral collateral)
+        /// <summary>
+        /// Calculate pro-rata subordination amount for a specific collateral and loan.
+        /// When multiple collaterals secure the same loan as 2nd mortgages:
+        /// 1. Take the max FirstMortgageAmount (assumes user enters same total on each property)
+        /// 2. Allocate proportionally based on indexed market values
+        /// This prevents double-counting when user enters the total first lien on each property.
+        /// </summary>
+        private decimal CalculateProRataSubordination(
+            Collateral currentCollateral,
+            int loanId,
+            decimal currentIndexedValue,
+            IEnumerable<Collateral> allCollaterals,
+            Dictionary<int, decimal> collateralIndexedValues)
         {
-            // Start with the indexed value
+            // Only apply pro-rata logic for 2nd mortgages with first mortgage amounts
+            if (currentCollateral.SecurityType == null || 
+                !currentCollateral.SecurityType.Equals("2nd Mortgage", StringComparison.OrdinalIgnoreCase) ||
+                !currentCollateral.FirstMortgageAmount.HasValue ||
+                currentCollateral.FirstMortgageAmount.Value <= 0)
+            {
+                return 0;
+            }
+
+            // Find ALL 2nd mortgage collaterals linked to the same loan
+            var relatedCollaterals = allCollaterals
+                .Where(c => c.LoanCollaterals.Any(lc => lc.LoanId == loanId) &&
+                           c.SecurityType != null &&
+                           c.SecurityType.Equals("2nd Mortgage", StringComparison.OrdinalIgnoreCase) &&
+                           c.FirstMortgageAmount.HasValue &&
+                           c.FirstMortgageAmount.Value > 0)
+                .ToList();
+
+            // If only one collateral, use its full FirstMortgageAmount
+            if (relatedCollaterals.Count <= 1)
+            {
+                _logger.LogInformation("Single 2nd mortgage collateral for loan {LoanId}, using full subordination: {Amount}", 
+                    loanId, currentCollateral.FirstMortgageAmount.Value);
+                return currentCollateral.FirstMortgageAmount.Value;
+            }
+
+            // Multiple collaterals: use MAX FirstMortgageAmount as the total
+            // (assumes user enters the same total first lien amount on each property)
+            var totalFirstMortgageAmount = relatedCollaterals.Max(c => c.FirstMortgageAmount!.Value);
+
+            // Calculate total indexed value of all related collaterals
+            var totalIndexedValue = relatedCollaterals
+                .Where(c => collateralIndexedValues.ContainsKey(c.CollateralId))
+                .Sum(c => collateralIndexedValues[c.CollateralId]);
+
+            if (totalIndexedValue <= 0)
+            {
+                _logger.LogWarning("Total indexed value is 0 for loan {LoanId}, cannot allocate subordination", loanId);
+                return 0;
+            }
+
+            // Calculate pro-rata share for this collateral based on its market value
+            var proRataShare = currentIndexedValue / totalIndexedValue;
+            var allocatedSubordination = totalFirstMortgageAmount * proRataShare;
+
+            _logger.LogInformation(
+                "Pro-rata subordination for Collateral {CollateralId} on Loan {LoanId}: " +
+                "({CurrentValue} / {TotalValue}) * {TotalSubordination} = {AllocatedSubordination} " +
+                "({Share:P1} of total across {RelatedCount} collaterals)",
+                currentCollateral.CollateralId, loanId, currentIndexedValue, totalIndexedValue, 
+                totalFirstMortgageAmount, allocatedSubordination, proRataShare, relatedCollaterals.Count);
+
+            return allocatedSubordination;
+        }
+
+        /// <summary>
+        /// Calculate effective collateral value with pro-rata subordination already calculated
+        /// </summary>
+        private decimal CalculateEffectiveCollateralValueWithProRataSubordination(
+            decimal indexedValue, 
+            Collateral collateral, 
+            decimal proRataSubordination)
+        {
             var effectiveValue = indexedValue;
+            
+            _logger.LogInformation("CalculateEffectiveCollateralValue - CollateralId: {CollateralId}, " +
+                "SecurityType: '{SecurityType}', ProRataSubordination: {ProRataSubordination}, " +
+                "IndexedValue: {IndexedValue}", 
+                collateral.CollateralId, collateral.SecurityType, proRataSubordination, indexedValue);
             
             // Apply liquidity haircut (percentage discount)
             if (collateral.LiquidityHaircut > 0)
             {
                 var haircutAmount = effectiveValue * (collateral.LiquidityHaircut / 100m);
                 effectiveValue = effectiveValue - haircutAmount;
+                _logger.LogInformation("Applied haircut of {HaircutPercent}%, reduced by {HaircutAmount}", 
+                    collateral.LiquidityHaircut, haircutAmount);
             }
             
-            // If it's a 2nd mortgage and has a first mortgage amount, subtract it
-            if (collateral.SecurityType == "2nd Mortgage" && collateral.FirstMortgageAmount.HasValue && collateral.FirstMortgageAmount.Value > 0)
+            // Subtract pro-rata subordination amount
+            if (proRataSubordination > 0)
             {
-                effectiveValue = effectiveValue - collateral.FirstMortgageAmount.Value;
+                effectiveValue = effectiveValue - proRataSubordination;
+                _logger.LogInformation("Deducted pro-rata subordination of {Subordination}, " +
+                    "effectiveValue now: {EffectiveValue}", 
+                    proRataSubordination, effectiveValue);
             }
 
             // Ensure non-negative value
-            return Math.Max(0, effectiveValue);
+            var finalValue = Math.Max(0, effectiveValue);
+            _logger.LogInformation("Final effective value: {FinalValue}", finalValue);
+            
+            return finalValue;
+        }
+
+        private decimal CalculateEffectiveCollateralValue(decimal indexedValue, Collateral collateral)
+        {
+            // Start with the indexed value
+            var effectiveValue = indexedValue;
+            
+            _logger.LogInformation("CalculateEffectiveCollateralValue - CollateralId: {CollateralId}, " +
+                "SecurityType: '{SecurityType}', FirstMortgageAmount: {FirstMortgageAmount}, " +
+                "IndexedValue: {IndexedValue}", 
+                collateral.CollateralId, collateral.SecurityType, collateral.FirstMortgageAmount, indexedValue);
+            
+            // Apply liquidity haircut (percentage discount)
+            if (collateral.LiquidityHaircut > 0)
+            {
+                var haircutAmount = effectiveValue * (collateral.LiquidityHaircut / 100m);
+                effectiveValue = effectiveValue - haircutAmount;
+                _logger.LogInformation("Applied haircut of {HaircutPercent}%, reduced by {HaircutAmount}", 
+                    collateral.LiquidityHaircut, haircutAmount);
+            }
+            
+            // If it's a 2nd mortgage and has a first mortgage amount, subtract it
+            // Use case-insensitive comparison to handle potential variations
+            if (collateral.SecurityType != null && 
+                collateral.SecurityType.Equals("2nd Mortgage", StringComparison.OrdinalIgnoreCase) && 
+                collateral.FirstMortgageAmount.HasValue && 
+                collateral.FirstMortgageAmount.Value > 0)
+            {
+                effectiveValue = effectiveValue - collateral.FirstMortgageAmount.Value;
+                _logger.LogInformation("Deducted first mortgage amount of {FirstMortgageAmount}, " +
+                    "effectiveValue now: {EffectiveValue}", 
+                    collateral.FirstMortgageAmount.Value, effectiveValue);
+            }
+            else
+            {
+                _logger.LogInformation("First mortgage NOT deducted - SecurityType: '{SecurityType}', " +
+                    "FirstMortgageAmount: {FirstMortgageAmount}", 
+                    collateral.SecurityType, collateral.FirstMortgageAmount);
+            }
+
+            // Ensure non-negative value
+            var finalValue = Math.Max(0, effectiveValue);
+            _logger.LogInformation("Final effective value: {FinalValue}", finalValue);
+            
+            return finalValue;
         }
 
         // GET: api/CollateralSettings/statistics/{collateralType}

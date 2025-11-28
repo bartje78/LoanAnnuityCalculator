@@ -120,11 +120,14 @@ namespace LoanAnnuityCalculatorAPI.Services
             int invoiceDay,
             DateTime loanStartDate)
         {
+            // periodDifference represents elapsed periods, so the next payment is for period (periodDifference + 1)
+            decimal nextPaymentPeriod = periodDifference + 1;
+            
             // If it's a whole number of months, use standard calculation
             if (periodDifference == Math.Floor(periodDifference))
             {
-                int wholePeriod = (int)periodDifference;
-                if (wholePeriod < interestOnlyMonths)
+                int wholePeriod = (int)nextPaymentPeriod;
+                if (wholePeriod <= interestOnlyMonths)
                 {
                     return new FractionalPaymentResult
                     {
@@ -137,12 +140,12 @@ namespace LoanAnnuityCalculatorAPI.Services
                 }
                 else
                 {
-                    // Calculate annuity payment for standard periods
+                    // Calculate annuity payment for standard periods (next payment)
                     return CalculateStandardAnnuityPayment(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths, wholePeriod);
                 }
             }
 
-            // Handle fractional periods
+            // Handle fractional periods - next payment will be for a partial period
             return CalculateFractionalPeriodPayment(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths, periodDifference, invoiceDay, loanStartDate);
         }
 
@@ -153,44 +156,50 @@ namespace LoanAnnuityCalculatorAPI.Services
             int interestOnlyMonths,
             int period)
         {
-            // Standard monthly calculation
+            // Calculate the remaining loan at the start of this period
             decimal remainingLoan = loanAmount;
             
-            // Calculate through interest-only periods
-            for (int i = 1; i <= Math.Min(period, interestOnlyMonths); i++)
+            // Skip through interest-only periods (loan amount stays the same)
+            if (period <= interestOnlyMonths)
             {
-                if (i == period + 1)
-                {
-                    return new FractionalPaymentResult
-                    {
-                        InterestComponent = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate),
-                        CapitalComponent = 0,
-                        IsInterestOnlyPeriod = true,
-                        FractionalDays = 0,
-                        TotalDaysInPeriod = 30
-                    };
-                }
-            }
-
-            // If we're in the annuity period
-            if (period >= interestOnlyMonths)
-            {
-                int annuityMonths = tenorMonths - interestOnlyMonths;
-                decimal monthlyPayment = _annuityCalculator.CalculateMonthlyAnnuity(remainingLoan, annualInterestRate, annuityMonths);
                 decimal interestComponent = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate);
-                decimal capitalComponent = monthlyPayment - interestComponent;
-
                 return new FractionalPaymentResult
                 {
                     InterestComponent = interestComponent,
-                    CapitalComponent = capitalComponent,
-                    IsInterestOnlyPeriod = false,
+                    CapitalComponent = 0,
+                    IsInterestOnlyPeriod = true,
                     FractionalDays = 0,
                     TotalDaysInPeriod = 30
                 };
             }
 
-            return new FractionalPaymentResult();
+            // Calculate remaining loan by iterating through repayment periods
+            int annuityMonths = tenorMonths - interestOnlyMonths;
+            decimal monthlyPayment = _annuityCalculator.CalculateMonthlyAnnuity(remainingLoan, annualInterestRate, annuityMonths);
+
+            // Iterate through each month up to (but not including) the current period
+            // to calculate the remaining balance
+            for (int i = interestOnlyMonths + 1; i < period; i++)
+            {
+                decimal interestComponent = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate);
+                decimal capitalComponent = monthlyPayment - interestComponent;
+                remainingLoan -= capitalComponent;
+                
+                if (remainingLoan < 0) remainingLoan = 0;
+            }
+
+            // Now calculate for the current period with the correct remaining balance
+            decimal currentInterest = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate);
+            decimal currentCapital = monthlyPayment - currentInterest;
+
+            return new FractionalPaymentResult
+            {
+                InterestComponent = currentInterest,
+                CapitalComponent = currentCapital,
+                IsInterestOnlyPeriod = false,
+                FractionalDays = 0,
+                TotalDaysInPeriod = 30
+            };
         }
 
         private FractionalPaymentResult CalculateFractionalPeriodPayment(
@@ -206,9 +215,29 @@ namespace LoanAnnuityCalculatorAPI.Services
             decimal wholePart = Math.Floor(periodDifference);
             decimal fractionalPart = periodDifference - wholePart;
 
-            // Calculate the base monthly amounts
+            // First, calculate the remaining loan balance at the start of this fractional period
+            decimal remainingLoan = loanAmount;
             bool isInterestOnly = wholePart < interestOnlyMonths;
-            decimal monthlyInterest = _annuityCalculator.CalculateInterestComponent(loanAmount, annualInterestRate);
+
+            // If we're past the interest-only period, calculate the remaining balance
+            if (wholePart >= interestOnlyMonths)
+            {
+                int annuityMonths = tenorMonths - interestOnlyMonths;
+                decimal monthlyPayment = _annuityCalculator.CalculateMonthlyAnnuity(loanAmount, annualInterestRate, annuityMonths);
+
+                // Iterate through repayment periods to get current remaining balance
+                for (int i = interestOnlyMonths + 1; i <= wholePart; i++)
+                {
+                    decimal interestComponent = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate);
+                    decimal capitalComponent = monthlyPayment - interestComponent;
+                    remainingLoan -= capitalComponent;
+                    
+                    if (remainingLoan < 0) remainingLoan = 0;
+                }
+            }
+
+            // Calculate the base monthly amounts using the correct remaining balance
+            decimal monthlyInterest = _annuityCalculator.CalculateInterestComponent(remainingLoan, annualInterestRate);
             decimal monthlyCapital = 0;
 
             if (!isInterestOnly)

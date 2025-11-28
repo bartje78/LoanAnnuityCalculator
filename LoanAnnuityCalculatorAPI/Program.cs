@@ -9,6 +9,7 @@ using LoanAnnuityCalculatorAPI.Models.Loan; // For Loan-related models
 using LoanAnnuityCalculatorAPI.Models.Debtor; // For Debtor-related models
 using LoanAnnuityCalculatorAPI.Models.Ratios; // For CreditRatingThreshold
 using LoanAnnuityCalculatorAPI.Services;
+using LoanAnnuityCalculatorAPI.Middleware;
 using OfficeOpenXml;
 using System.IO;
 
@@ -41,10 +42,19 @@ builder.Services.AddScoped<IStatusCalculationService, StatusCalculationService>(
 builder.Services.AddScoped<FractionalPaymentCalculator>(); // Register the fractional payment calculator
 builder.Services.AddScoped<TariffCalculatorService>(); // Register the tariff calculator service
 builder.Services.AddScoped<MonteCarloSimulationService>(); // Register the Monte Carlo simulation service
+builder.Services.AddScoped<ShockGenerationService>(); // Register the shock generation service
+builder.Services.AddScoped<DebtorSimulationService>(); // Register the debtor simulation service
 builder.Services.AddScoped<LoanFinancialCalculatorService>(); // Register the loan financial calculator service
 builder.Services.AddScoped<BalanceSheetMigrationService>(); // Register the balance sheet migration service
 builder.Services.AddScoped<BalanceSheetCalculationService>(); // Register the balance sheet calculation service
 builder.Services.AddScoped<IAuthService, AuthService>(); // Register the authentication service
+builder.Services.AddScoped<SectorCorrelationSeedService>(); // Register the sector correlation seed service
+builder.Services.AddScoped<RevenueSectorMappingService>(); // Register the revenue sector mapping service
+builder.Services.AddScoped<ITenantService, TenantService>(); // Register the tenant service
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>(); // Register the subscription service
+
+// Register HttpContextAccessor for tenant context
+builder.Services.AddHttpContextAccessor();
 
 // Register LoanDbContext with the DI container
 // Build an absolute path to the database file so migrations and runtime use the same file
@@ -100,6 +110,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("RiskManagerOrAdmin", policy => policy.RequireRole("Admin", "RiskManager"));
     options.AddPolicy("ViewerOrAbove", policy => policy.RequireRole("Admin", "RiskManager", "Viewer"));
+    
+    // Multi-tenancy policies
+    options.AddPolicy("SystemAdminOnly", policy => policy.RequireClaim("IsSystemAdmin", "true"));
+    options.AddPolicy("TenantAdminOnly", policy => policy.RequireRole(TenantRoles.TenantAdmin));
 });
 
 // Add CORS policy
@@ -120,6 +134,10 @@ app.UseCors("AllowSpecificOrigins");
 
 // Use Authentication & Authorization (order matters!)
 app.UseAuthentication();
+
+// Add tenant middleware AFTER authentication
+app.UseTenantMiddleware();
+
 app.UseAuthorization();
 
 //app.UseHttpsRedirection();

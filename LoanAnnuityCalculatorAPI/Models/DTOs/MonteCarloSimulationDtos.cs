@@ -44,7 +44,37 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal CollateralVolatility { get; set; } = 0.10m; // 10% volatility
         public decimal CollateralCorrelation { get; set; } = 0.30m; // Correlation with revenue
         
-        // Correlation matrix parameters
+        // Sector-based correlation parameters (NEW - for portfolio analysis)
+        // 
+        // JOINT CORRELATION MATRIX APPROACH:
+        // For portfolio analysis, we model correlated shocks across multiple dimensions:
+        // 1. Revenue sector shocks (12 sectors: Manufacturing, Retail, RealEstate, etc.)
+        // 2. Collateral property type shocks (9 types: Residential, Commercial, Industrial, etc.)
+        // 3. Cross-correlations between revenue sectors and collateral types
+        //
+        // The joint correlation matrix is constructed as:
+        //   [ Sector-Sector Correlations  |  Sector-Collateral Correlations ]
+        //   [ ----------------------------- | ------------------------------- ]
+        //   [ Collateral-Sector (transpose)|  Collateral-Collateral = I      ]
+        //
+        // This allows us to generate correlated shocks for all debtors in a portfolio:
+        // - Debtors with similar sector exposure experience correlated revenue shocks
+        // - Debtors with similar collateral types experience correlated value changes
+        // - Revenue and collateral are realistically correlated (e.g., retail revenue down → retail property values down)
+        //
+        // Example: Manufacturing debtor with industrial collateral will experience:
+        // - Revenue shock from manufacturing sector state
+        // - Collateral shock from industrial property market
+        // - Both shocks are correlated (e.g., 0.70) because industrial property values track manufacturing sector health
+        //
+        public Dictionary<Models.Sector, decimal>? SectorWeights { get; set; } // Debtor's exposure to each sector (from revenue breakdown)
+        public double[,]? SectorCorrelationMatrix { get; set; } // n x n correlation matrix for sectors ONLY (will be expanded to joint matrix internally)
+        public Dictionary<Models.Sector, decimal>? SectorVolatilities { get; set; } // Volatility per sector
+        public Dictionary<string, decimal>? CollateralWeights { get; set; } // Debtor's collateral breakdown by property type
+        public Dictionary<string, decimal>? CollateralVolatilities { get; set; } // Volatility per property type
+        public Dictionary<(Models.Sector, string), decimal>? SectorCollateralCorrelations { get; set; } // Cross-correlations between sectors and property types
+        
+        // Correlation matrix parameters (LEGACY - kept for backward compatibility)
         public CorrelationMatrix? Correlations { get; set; }
     }
 
@@ -77,6 +107,7 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal CollateralValue { get; set; }
         public decimal LiquidityHaircut { get; set; } // % haircut on collateral value
         public decimal Subordination { get; set; } // Amount of subordinated debt ahead of this loan
+        public string? CollateralPropertyType { get; set; } // Property type for sector-collateral correlations
         public List<YearlyLoanPayment> YearlyPayments { get; set; } = new List<YearlyLoanPayment>();
     }
 
@@ -182,6 +213,9 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         
         // ROI calculation
         public decimal CumulativeInterestPaid { get; set; } // Total interest paid during simulation period
+        
+        // Sector-based shock tracking (for portfolio simulations)
+        public Dictionary<int, Dictionary<Models.Sector, double>> SectorShocksPerYear { get; set; } = new Dictionary<int, Dictionary<Models.Sector, double>>();
     }
 
     public class YearResult

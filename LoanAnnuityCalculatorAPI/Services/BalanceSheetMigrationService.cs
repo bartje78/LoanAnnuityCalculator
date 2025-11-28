@@ -81,7 +81,15 @@ namespace LoanAnnuityCalculatorAPI.Services
                 // We'll reconstruct fixed assets from collateral only
                 var processedCollateralIds = new HashSet<int>();
                 
-                foreach (var loan in balanceSheet.DebtorDetails.Loans)
+                // Filter loans to only include those active during the balance sheet year
+                var loansActiveDuringYear = balanceSheet.DebtorDetails.Loans.Where(loan =>
+                {
+                    var loanStartYear = loan.StartDate.Year;
+                    var loanEndYear = loan.StartDate.AddMonths(loan.TenorMonths).Year;
+                    return balanceSheet.BookYear >= loanStartYear && balanceSheet.BookYear <= loanEndYear;
+                }).ToList();
+                
+                foreach (var loan in loansActiveDuringYear)
                 {
                     foreach (var loanCollateral in loan.LoanCollaterals)
                     {
@@ -134,7 +142,8 @@ namespace LoanAnnuityCalculatorAPI.Services
                 }
 
                 // 5. Long-Term Liabilities from loans (auto-generated)
-                foreach (var loan in balanceSheet.DebtorDetails.Loans)
+                // Use the same filtered list of loans active during the balance sheet year
+                foreach (var loan in loansActiveDuringYear)
                 {
                     var label = $"Loan #{loan.LoanID}";
                     if (loan.AnnualInterestRate > 0)

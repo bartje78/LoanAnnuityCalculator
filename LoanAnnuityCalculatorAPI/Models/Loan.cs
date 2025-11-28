@@ -16,6 +16,18 @@ namespace LoanAnnuityCalculatorAPI.Models.Loan
         [ForeignKey("DebtorDetails")]
         public int DebtorID { get; set; }
 
+        /// <summary>
+        /// Tenant this loan belongs to - CRITICAL for data isolation
+        /// </summary>
+        [Required]
+        public int TenantId { get; set; }
+
+        /// <summary>
+        /// Fund this loan is associated with
+        /// </summary>
+        [Required]
+        public int FundId { get; set; }
+
         public decimal LoanAmount { get; set; }
         public decimal AnnualInterestRate { get; set; }
         public int TenorMonths { get; set; }
@@ -24,9 +36,21 @@ namespace LoanAnnuityCalculatorAPI.Models.Loan
         public string? Status { get; set; }
         
         public string RedemptionSchedule { get; set; } = "Annuity";
+        
+        // Building Depot specific fields
+        public decimal? CreditLimit { get; set; }  // Maximum amount that can be drawn
+        public decimal? AmountDrawn { get; set; }  // Actual amount drawn from the credit facility
+        
+        // Manual override for outstanding amount (for import corrections)
+        public decimal? ManualOutstandingAmount { get; set; }
+        
         // Calculated property for current outstanding amount
         [NotMapped]
-        public decimal OutstandingAmount => CalculateOutstandingAmount();
+        public decimal OutstandingAmount 
+        { 
+            get => ManualOutstandingAmount ?? CalculateOutstandingAmount();
+            set => ManualOutstandingAmount = value;
+        }
 
         // Navigation properties
         public DebtorDetails? DebtorDetails { get; set; }
@@ -63,6 +87,52 @@ namespace LoanAnnuityCalculatorAPI.Models.Loan
 
                 switch (RedemptionSchedule)
                 {
+                    case "BuildingDepot":
+                        // For building depot: use AmountDrawn as the base, not LoanAmount
+                        // During interest-only period: outstanding = amount drawn
+                        // After interest-only: repay the drawn amount over remaining tenor
+                        decimal drawnAmount = AmountDrawn ?? 0;
+                        
+                        if (monthsElapsed < InterestOnlyMonths)
+                        {
+                            // Still in interest-only phase - outstanding equals amount drawn
+                            return drawnAmount;
+                        }
+                        else
+                        {
+                            // In repayment phase - calculate like annuity/linear on drawn amount
+                            remainingLoan = drawnAmount;
+                            int capitalRepaymentMonths = TenorMonths - InterestOnlyMonths;
+                            int monthsIntoRepayment = monthsElapsed - InterestOnlyMonths;
+                            
+                            if (monthsIntoRepayment >= capitalRepaymentMonths)
+                            {
+                                return 0; // Fully repaid
+                            }
+                            
+                            // Use annuity method for building depot repayment
+                            decimal depotAnnuityPayment = 0;
+                            if (monthlyInterestRate > 0)
+                            {
+                                depotAnnuityPayment = (drawnAmount * monthlyInterestRate * (decimal)Math.Pow((double)(1 + monthlyInterestRate), capitalRepaymentMonths)) /
+                                               ((decimal)Math.Pow((double)(1 + monthlyInterestRate), capitalRepaymentMonths) - 1);
+                            }
+                            else
+                            {
+                                depotAnnuityPayment = drawnAmount / capitalRepaymentMonths;
+                            }
+                            
+                            // Calculate remaining after months of repayment
+                            for (int month = 1; month <= monthsIntoRepayment; month++)
+                            {
+                                decimal interestComponent = remainingLoan * monthlyInterestRate;
+                                decimal capitalComponent = depotAnnuityPayment - interestComponent;
+                                remainingLoan -= capitalComponent;
+                                if (remainingLoan < 0) remainingLoan = 0;
+                                if (remainingLoan == 0) break;
+                            }
+                        }
+                        break;
                     case "Annuity":
                         // Calculate annuity payment for capital+interest phase
                         decimal annuityPayment = 0;

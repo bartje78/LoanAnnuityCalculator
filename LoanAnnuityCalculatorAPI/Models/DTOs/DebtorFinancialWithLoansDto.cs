@@ -20,6 +20,7 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public DateTime StartDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public decimal TotalCollateralValue { get; set; }
+        public string? PrimaryCollateralType { get; set; }  // e.g., "Industrial", "Residential", "Commercial"
         public List<LoanYearlyDetailsDto> YearlyDetails { get; set; } = new List<LoanYearlyDetailsDto>();
     }
 
@@ -67,6 +68,7 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal InterestExpense { get; set; }
         public decimal TaxExpense { get; set; }
         public decimal NetIncome { get; set; }
+        public string? RevenueSectorBreakdown { get; set; }
         
         // Enhanced fields
         public decimal CalculatedLoanInterest { get; set; }

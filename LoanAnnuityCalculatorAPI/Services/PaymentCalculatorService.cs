@@ -30,6 +30,7 @@ namespace LoanAnnuityCalculatorAPI.Services
                 "Annuity" => CalculateAnnuityForMonth(loanAmount, annualInterestRate, tenorMonths, period, interestOnlyMonths),
                 "Linear" => CalculateLinearForMonth(loanAmount, annualInterestRate, tenorMonths, period, interestOnlyMonths),
                 "Bullet" => CalculateBulletForMonth(loanAmount, annualInterestRate, tenorMonths, period, interestOnlyMonths),
+                "BuildingDepot" => CalculateAnnuityForMonth(loanAmount, annualInterestRate, tenorMonths, period, interestOnlyMonths),
                 _ => throw new ArgumentException($"Unsupported redemption schedule: {redemptionSchedule}")
             };
         }
@@ -54,6 +55,7 @@ namespace LoanAnnuityCalculatorAPI.Services
                 "Annuity" => CalculateAnnuityForEntireTenor(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths),
                 "Linear" => CalculateLinearForEntireTenor(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths),
                 "Bullet" => CalculateBulletForEntireTenor(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths),
+                "BuildingDepot" => CalculateAnnuityForEntireTenor(loanAmount, annualInterestRate, tenorMonths, interestOnlyMonths),
                 _ => throw new ArgumentException($"Unsupported redemption schedule: {redemptionSchedule}")
             };
         }

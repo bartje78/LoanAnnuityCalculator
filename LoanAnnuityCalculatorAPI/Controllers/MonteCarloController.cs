@@ -19,6 +19,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         private readonly PaymentCalculatorService _paymentCalculator;
         private readonly LoanDateHelper _loanDateHelper;
         private readonly BalanceSheetCalculationService _balanceSheetCalculation;
+        private readonly SectorCorrelationSeedService _sectorCorrelationSeedService;
 
         public MonteCarloController(
             MonteCarloSimulationService simulationService,
@@ -26,7 +27,8 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             LoanDbContext dbContext,
             PaymentCalculatorService paymentCalculator,
             LoanDateHelper loanDateHelper,
-            BalanceSheetCalculationService balanceSheetCalculation)
+            BalanceSheetCalculationService balanceSheetCalculation,
+            SectorCorrelationSeedService sectorCorrelationSeedService)
         {
             _simulationService = simulationService;
             _logger = logger;
@@ -35,6 +37,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             _paymentCalculator = paymentCalculator;
             _loanDateHelper = loanDateHelper;
             _balanceSheetCalculation = balanceSheetCalculation;
+            _sectorCorrelationSeedService = sectorCorrelationSeedService;
         }
 
         /// <summary>
@@ -102,6 +105,22 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 
                 if (request.UseActualLoans)
                 {
+                    // Load financial data from database to ensure consistency (SAME AS PORTFOLIO MODE)
+                    var balanceSheet = await _balanceSheetCalculation.CalculateFromLineItems(request.DebtorId);
+                    var latestPL = await _dbContext.DebtorPLs
+                        .Where(pl => pl.DebtorID == request.DebtorId)
+                        .OrderByDescending(pl => pl.BookYear)
+                        .FirstOrDefaultAsync();
+                    
+                    if (balanceSheet != null && latestPL != null)
+                    {
+                        request.InitialRevenue = latestPL.Revenue;
+                        request.InitialOperatingCosts = latestPL.OperatingExpenses;
+                        request.InitialEquity = balanceSheet.Equity;
+                        request.InitialAssets = balanceSheet.TotalAssets;
+                        request.InitialLiquidAssets = balanceSheet.CurrentAssets;
+                    }
+                    
                     var loansQuery = _dbContext.Loans
                         .Include(l => l.LoanCollaterals)
                             .ThenInclude(lc => lc.Collateral)
@@ -174,6 +193,12 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                         // Calculate yearly payment schedule for this loan
                         var yearlyPayments = CalculateYearlyPaymentSchedule(loan, request.SimulationYears);
 
+                        // Determine primary property type for this loan's collateral
+                        string? propertyType = loan.LoanCollaterals
+                            .Where(lc => lc.Collateral != null && !string.IsNullOrEmpty(lc.Collateral.PropertyType))
+                            .Select(lc => lc.Collateral!.PropertyType)
+                            .FirstOrDefault();
+
                         simulatedLoans.Add(new SimulatedLoanInfo
                         {
                             LoanId = loan.LoanID,
@@ -184,6 +209,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                             CollateralValue = collateral,
                             LiquidityHaircut = liquidityHaircut,
                             Subordination = subordination,
+                            CollateralPropertyType = propertyType,
                             YearlyPayments = yearlyPayments
                         });
                     }
@@ -223,8 +249,10 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                         loan.LoanId, loan.LoanAmount, loan.InterestRate, loan.YearlyPayments?.Count ?? 0);
                 }
 
-                // Note: Model settings (volatilities, growth rates, collateral parameters) 
-                // are now passed directly in the request from the frontend
+                // Enrich request with sector correlation data from database
+                // This loads sector-sector and sector-collateral correlations from the model settings tables
+                // Uses model settings ID 1 by default (can be made configurable later)
+                await EnrichRequestWithSectorData(request, modelSettingsId: 1, simulatedLoans);
 
                 var result = _simulationService.RunSimulation(request, simulatedLoans);
 
@@ -565,6 +593,402 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             {
                 _logger.LogError(ex, "Error calculating balance sheet for debtor {DebtorId}", debtorId);
                 return StatusCode(500, new { message = "Error calculating balance sheet", error = ex.Message });
+            }
+        }
+        
+        /// <summary>
+        /// Enrich simulation request with sector correlation data from database
+        /// This automatically loads sector-sector and sector-collateral correlations for the specified model settings
+        /// </summary>
+        private async Task EnrichRequestWithSectorData(MonteCarloSimulationRequest request, int modelSettingsId, List<SimulatedLoanInfo> simulatedLoans)
+        {
+            // If sector weights are already provided and correlation matrix exists, skip database lookup
+            if (request.SectorWeights != null && request.SectorWeights.Any() && request.SectorCorrelationMatrix != null)
+            {
+                _logger.LogInformation("Sector data already provided in request, skipping database enrichment");
+                return;
+            }
+            
+            try
+            {
+                // Load sector definitions to get volatilities
+                var sectors = await _dbContext.SectorDefinitions
+                    .Where(s => s.ModelSettingsId == modelSettingsId && s.IsActive)
+                    .ToListAsync();
+                
+                if (!sectors.Any())
+                {
+                    _logger.LogWarning("No active sectors found for model settings {ModelSettingsId}, using legacy approach", modelSettingsId);
+                    return;
+                }
+                
+                // Build sector volatilities dictionary
+                request.SectorVolatilities = new Dictionary<Models.Sector, decimal>();
+                foreach (var sector in sectors)
+                {
+                    if (Enum.TryParse<Models.Sector>(sector.SectorCode, out var sectorEnum))
+                    {
+                        request.SectorVolatilities[sectorEnum] = sector.DefaultVolatility;
+                    }
+                }
+                
+                // Build correlation matrix from database
+                var correlationMatrix = await _sectorCorrelationSeedService.BuildCorrelationMatrixAsync(modelSettingsId);
+                if (correlationMatrix != null)
+                {
+                    request.SectorCorrelationMatrix = correlationMatrix;
+                    _logger.LogInformation("Loaded {Size}x{Size} sector correlation matrix from database", 
+                        correlationMatrix.GetLength(0), correlationMatrix.GetLength(1));
+                }
+                
+                // Load sector weights from latest P&L if available
+                if (request.SectorWeights == null || !request.SectorWeights.Any())
+                {
+                    var latestPL = await _dbContext.DebtorPLs
+                        .Where(pl => pl.DebtorID == request.DebtorId)
+                        .OrderByDescending(pl => pl.BookYear)
+                        .FirstOrDefaultAsync();
+                    
+                    if (latestPL != null && !string.IsNullOrEmpty(latestPL.RevenueSectorBreakdown))
+                    {
+                        try
+                        {
+                            // Parse sector breakdown and calculate weights
+                            var sectorBreakdown = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, decimal>>(latestPL.RevenueSectorBreakdown);
+                            if (sectorBreakdown != null && sectorBreakdown.Any())
+                            {
+                                var totalRevenue = sectorBreakdown.Values.Sum();
+                                request.SectorWeights = new Dictionary<Models.Sector, decimal>();
+                                
+                                foreach (var kvp in sectorBreakdown)
+                                {
+                                    if (Enum.TryParse<Models.Sector>(kvp.Key, out var sectorEnum))
+                                    {
+                                        request.SectorWeights[sectorEnum] = totalRevenue > 0 ? kvp.Value / totalRevenue : 0;
+                                    }
+                                }
+                                
+                                _logger.LogInformation("Loaded sector weights from P&L (BookYear {Year}): {Count} sectors", 
+                                    latestPL.BookYear, request.SectorWeights.Count);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error parsing sector breakdown from P&L");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("No sector breakdown found in latest P&L, using legacy revenue volatility approach");
+                    }
+                }
+                
+                // Load sector-collateral correlations from database
+                var sectorCollateralCorrelations = await _dbContext.SectorCollateralCorrelations
+                    .Where(sc => sc.ModelSettingsId == modelSettingsId)
+                    .ToListAsync();
+                
+                if (sectorCollateralCorrelations.Any())
+                {
+                    request.SectorCollateralCorrelations = new Dictionary<(Models.Sector, string), decimal>();
+                    
+                    foreach (var sc in sectorCollateralCorrelations)
+                    {
+                        if (Enum.TryParse<Models.Sector>(sc.Sector, out var sectorEnum))
+                        {
+                            request.SectorCollateralCorrelations[(sectorEnum, sc.PropertyType)] = sc.CorrelationCoefficient;
+                        }
+                    }
+                    
+                    _logger.LogInformation("Loaded {Count} sector-collateral correlations from database", 
+                        request.SectorCollateralCorrelations.Count);
+                }
+                
+                // Determine primary collateral property type from balance sheet line items
+                // This ensures we use the same property types that appear on the balance sheet
+                List<string> collateralTypes = new List<string>();
+                
+                if (simulatedLoans.Any() && request.DebtorId > 0)
+                {
+                    // First try: Get property types from balance sheet line items
+                    var balanceSheet = await _dbContext.DebtorBalanceSheets
+                        .Where(bs => bs.DebtorID == request.DebtorId)
+                        .OrderByDescending(bs => bs.BookYear)
+                        .FirstOrDefaultAsync();
+                    
+                    if (balanceSheet != null)
+                    {
+                        var lineItems = await _dbContext.BalanceSheetLineItems
+                            .Include(li => li.Collateral)
+                            .Where(li => li.BalanceSheetId == balanceSheet.Id && li.Collateral != null)
+                            .ToListAsync();
+                        
+                        collateralTypes = lineItems
+                            .Where(li => !string.IsNullOrEmpty(li.Collateral!.PropertyType))
+                            .Select(li => li.Collateral!.PropertyType)
+                            .ToList();
+                        
+                        if (collateralTypes.Any())
+                        {
+                            _logger.LogInformation("Found {Count} collateral property types from balance sheet (BookYear {Year}) for debtor {DebtorId}", 
+                                collateralTypes.Count, balanceSheet.BookYear, request.DebtorId);
+                        }
+                    }
+                    
+                    // Fallback: If no property types found in balance sheet, get from loans table
+                    if (!collateralTypes.Any())
+                    {
+                        _logger.LogInformation("No property types in balance sheet, falling back to loans table for debtor {DebtorId}", 
+                            request.DebtorId);
+                        
+                        var loans = await _dbContext.Loans
+                            .Include(l => l.LoanCollaterals)
+                                .ThenInclude(lc => lc.Collateral)
+                            .Where(l => l.DebtorID == request.DebtorId)
+                            .ToListAsync();
+                        
+                        collateralTypes = loans
+                            .SelectMany(l => l.LoanCollaterals)
+                            .Where(lc => lc.Collateral != null && !string.IsNullOrEmpty(lc.Collateral.PropertyType))
+                            .Select(lc => lc.Collateral!.PropertyType)
+                            .ToList();
+                    }
+                    
+                    if (collateralTypes.Any())
+                    {
+                        // Group by property type and get the one with highest count
+                        var primaryPropertyType = collateralTypes
+                            .GroupBy(pt => pt)
+                            .OrderByDescending(g => g.Count())
+                            .First()
+                            .Key;
+                        
+                        // Translate Dutch property types to English (standardized for correlation table)
+                        var propertyTypeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            { "Industrie", "Industrial" },
+                            { "Kantoor", "Office" },
+                            { "Winkels", "Retail" },
+                            { "Woningen", "Residential" },
+                            { "Residential", "Residential" },
+                            { "Commercial", "Commercial" },
+                            { "Industrial", "Industrial" },
+                            { "Office", "Office" },
+                            { "Retail", "Retail" }
+                        };
+                        
+                        // Translate property type if mapping exists
+                        var translatedPropertyType = propertyTypeMap.ContainsKey(primaryPropertyType) 
+                            ? propertyTypeMap[primaryPropertyType] 
+                            : primaryPropertyType;
+                        
+                        _logger.LogInformation("Primary collateral property type for debtor {DebtorId}: {PropertyType} (translated to: {TranslatedType})", 
+                            request.DebtorId, primaryPropertyType, translatedPropertyType);
+                        
+                        // Filter sector-collateral correlations to only include this property type
+                        if (request.SectorCollateralCorrelations != null)
+                        {
+                            var filteredCorrelations = request.SectorCollateralCorrelations
+                                .Where(kvp => kvp.Key.Item2.Equals(translatedPropertyType, StringComparison.OrdinalIgnoreCase))
+                                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                            
+                            request.SectorCollateralCorrelations = filteredCorrelations;
+                            
+                            _logger.LogInformation("Filtered to {Count} correlations for property type {PropertyType}", 
+                                filteredCorrelations.Count, translatedPropertyType);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("No collateral property types found for debtor {DebtorId}, will use legacy correlation approach", 
+                            request.DebtorId);
+                    }
+                }
+                
+                _logger.LogInformation("Successfully enriched request with sector correlation data from database");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error enriching request with sector data, falling back to legacy approach");
+            }
+        }
+
+        [HttpPost("simulate-portfolio")]
+        public async Task<ActionResult<PortfolioMonteCarloResponse>> RunPortfolioSimulation([FromBody] PortfolioMonteCarloRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Running portfolio MC for {Count} debtors", request.DebtorIds.Count);
+                int modelSettingsId = 1;
+                
+                // Load model settings from database (same as individual mode and frontend)
+                var modelSettings = await _dbContext.ModelSettings.FindAsync(modelSettingsId);
+                decimal defaultRevenueGrowthRate = modelSettings?.DefaultRevenueGrowthRate ?? 0.00m;
+                decimal defaultOperatingCostGrowthRate = modelSettings?.DefaultOperatingCostGrowthRate ?? 0.02m;
+                decimal defaultRevenueVolatility = modelSettings?.DefaultRevenueVolatility ?? 0.15m;
+                decimal defaultOperatingCostVolatility = modelSettings?.DefaultOperatingCostVolatility ?? 0.10m;
+                decimal defaultCollateralExpectedReturn = modelSettings?.DefaultCollateralExpectedReturn ?? 0.02m;
+                decimal defaultCollateralVolatility = modelSettings?.DefaultCollateralVolatility ?? 0.10m;
+                decimal defaultCollateralCorrelation = modelSettings?.DefaultCollateralCorrelation ?? 0.30m;
+                decimal defaultCorporateTaxRate = modelSettings?.DefaultCorporateTaxRate ?? 0.21m;
+                
+                _logger.LogInformation("Loaded model settings: RevenueGrowth={Growth:P2}, CollateralReturn={Return:P2}, CollateralVol={Vol:P2}",
+                    defaultRevenueGrowthRate, defaultCollateralExpectedReturn, defaultCollateralVolatility);
+                
+                var sectors = await _dbContext.SectorDefinitions.Where(s => s.ModelSettingsId == modelSettingsId && s.IsActive).ToListAsync();
+                var correlationMatrix = await _sectorCorrelationSeedService.BuildCorrelationMatrixAsync(modelSettingsId);
+                var sectorVolatilities = new Dictionary<Models.Sector, decimal>();
+                foreach (var sector in sectors)
+                {
+                    if (Enum.TryParse<Models.Sector>(sector.SectorCode, out var sectorEnum))
+                        sectorVolatilities[sectorEnum] = sector.DefaultVolatility;
+                }
+                var debtorData = new List<(int, string, MonteCarloSimulationRequest, List<SimulatedLoanInfo>)>();
+                foreach (var debtorId in request.DebtorIds)
+                {
+                    var debtor = await _dbContext.DebtorDetails.FindAsync(debtorId);
+                    if (debtor == null) continue;
+                    
+                    // Create request with ALL simulation parameters from database settings
+                    var debtorRequest = new MonteCarloSimulationRequest 
+                    { 
+                        DebtorId = debtorId, 
+                        UseActualLoans = true, 
+                        IncludeFirstLien = request.IncludeFirstLien, 
+                        SimulationYears = request.SimulationYears, 
+                        NumberOfSimulations = request.NumberOfSimulations, 
+                        CorporateTaxRate = defaultCorporateTaxRate,
+                        // Use model settings from database (same as individual mode)
+                        RevenueGrowthRate = defaultRevenueGrowthRate,
+                        OperatingCostGrowthRate = defaultOperatingCostGrowthRate,
+                        RevenueVolatility = defaultRevenueVolatility,
+                        OperatingCostVolatility = defaultOperatingCostVolatility,
+                        CollateralExpectedReturn = defaultCollateralExpectedReturn,
+                        CollateralVolatility = defaultCollateralVolatility,
+                        CollateralCorrelation = defaultCollateralCorrelation
+                    };
+                    
+                    var balanceSheet = await _balanceSheetCalculation.CalculateFromLineItems(debtorId);
+                    var latestPL = await _dbContext.DebtorPLs.Where(pl => pl.DebtorID == debtorId).OrderByDescending(pl => pl.BookYear).FirstOrDefaultAsync();
+                    if (balanceSheet == null || latestPL == null) continue;
+                    debtorRequest.InitialRevenue = latestPL.Revenue;
+                    debtorRequest.InitialOperatingCosts = latestPL.OperatingExpenses;
+                    debtorRequest.InitialEquity = balanceSheet.Equity;
+                    debtorRequest.InitialDebt = 0; // Set to 0 since we're using actual loan debt (SAME AS INDIVIDUAL MODE)
+                    debtorRequest.InitialAssets = balanceSheet.TotalAssets;
+                    debtorRequest.InitialLiquidAssets = balanceSheet.CurrentAssets;
+                    
+                    var simulatedLoans = new List<SimulatedLoanInfo>();
+                    
+                    // Load external loans from balance sheet line items (if requested) - SAME AS INDIVIDUAL MODE
+                    if (request.IncludeFirstLien)
+                    {
+                        if (balanceSheet?.ExternalLoans != null && balanceSheet.ExternalLoans.Any())
+                        {
+                            _logger.LogInformation("Portfolio: Found {Count} external loan(s) for debtor {DebtorId}", 
+                                balanceSheet.ExternalLoans.Count, debtorId);
+                            
+                            foreach (var externalLoan in balanceSheet.ExternalLoans)
+                            {
+                                if (externalLoan.InterestRate.HasValue && externalLoan.TenorMonths.HasValue)
+                                {
+                                    var firstLienLoan = new SimulatedLoanInfo
+                                    {
+                                        LoanId = -externalLoan.LineItemId,
+                                        LoanAmount = externalLoan.Amount,
+                                        InterestRate = externalLoan.InterestRate.Value,
+                                        TenorMonths = externalLoan.TenorMonths.Value,
+                                        RedemptionSchedule = externalLoan.RedemptionSchedule ?? "Annuity",
+                                        CollateralValue = 0,
+                                        LiquidityHaircut = 0,
+                                        Subordination = 0
+                                    };
+                                    
+                                    firstLienLoan.YearlyPayments = CalculateYearlyPaymentScheduleFromInfo(firstLienLoan, request.SimulationYears);
+                                    simulatedLoans.Add(firstLienLoan);
+                                    
+                                    _logger.LogInformation("Portfolio: External loan added for debtor {DebtorId}: Amount={Amount}, Rate={Rate}%", 
+                                        debtorId, externalLoan.Amount, externalLoan.InterestRate);
+                                }
+                            }
+                        }
+                    }
+                    
+                    var loans = await _dbContext.Loans.Include(l => l.LoanCollaterals).ThenInclude(lc => lc.Collateral).Where(l => l.DebtorID == debtorId).ToListAsync();
+                    if (!loans.Any() && !simulatedLoans.Any()) continue;
+                    
+                    // Get outstanding amounts from balance sheet (SAME AS INDIVIDUAL MODE)
+                    var loanIds = loans.Select(l => l.LoanID).ToList();
+                    var outstandingAmounts = await _balanceSheetCalculation.GetLoanOutstandingAmounts(debtorId, loanIds);
+                    int baseYear = DateTime.Now.Year;
+                    
+                    foreach (var loan in loans)
+                    {
+                        // Use outstanding amount from balance sheet if available (SAME AS INDIVIDUAL MODE)
+                        decimal outstanding = outstandingAmounts.ContainsKey(loan.LoanID) 
+                            ? outstandingAmounts[loan.LoanID]
+                            : _loanFinancialCalculator.CalculateOutstandingBalanceAtYear(loan, baseYear);
+                        
+                        var collateral = _loanFinancialCalculator.GetTotalCollateralValue(loan);
+                        
+                        // Calculate weighted average liquidity haircut and total subordination (SAME AS INDIVIDUAL MODE)
+                        decimal liquidityHaircut = 0;
+                        decimal subordination = 0;
+                        
+                        if (loan.LoanCollaterals != null && loan.LoanCollaterals.Any())
+                        {
+                            decimal totalCollateralValue = 0;
+                            decimal weightedHaircut = 0;
+                            
+                            foreach (var lc in loan.LoanCollaterals)
+                            {
+                                if (lc.Collateral != null)
+                                {
+                                    var collateralValue = lc.Collateral.AppraisalValue ?? 0;
+                                    totalCollateralValue += collateralValue;
+                                    weightedHaircut += collateralValue * lc.Collateral.LiquidityHaircut;
+                                    subordination += lc.Collateral.FirstMortgageAmount ?? 0;
+                                }
+                            }
+                            
+                            if (totalCollateralValue > 0)
+                            {
+                                liquidityHaircut = weightedHaircut / totalCollateralValue;
+                            }
+                        }
+
+                        // Determine primary property type for this loan's collateral (SAME AS INDIVIDUAL MODE)
+                        string? propertyType = loan.LoanCollaterals
+                            .Where(lc => lc.Collateral != null && !string.IsNullOrEmpty(lc.Collateral.PropertyType))
+                            .Select(lc => lc.Collateral!.PropertyType)
+                            .FirstOrDefault();
+                        
+                        simulatedLoans.Add(new SimulatedLoanInfo 
+                        { 
+                            LoanId = loan.LoanID, 
+                            LoanAmount = outstanding,  // Use outstanding balance, not original amount
+                            InterestRate = loan.AnnualInterestRate, 
+                            TenorMonths = loan.TenorMonths, 
+                            RedemptionSchedule = loan.RedemptionSchedule, 
+                            CollateralValue = collateral,
+                            LiquidityHaircut = liquidityHaircut,
+                            Subordination = subordination,
+                            CollateralPropertyType = propertyType,
+                            YearlyPayments = CalculateYearlyPaymentSchedule(loan, request.SimulationYears) 
+                        });
+                    }
+                    debtorRequest.LoanAmount = simulatedLoans.Sum(l => l.LoanAmount);
+                    await EnrichRequestWithSectorData(debtorRequest, modelSettingsId, simulatedLoans);
+                    debtorData.Add((debtorId, debtor.DebtorName, debtorRequest, simulatedLoans));
+                }
+                if (!debtorData.Any()) return BadRequest(new { message = "No valid debtors" });
+                var result = _simulationService.RunPortfolioSimulation(debtorData, correlationMatrix, sectorVolatilities);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in portfolio simulation");
+                return StatusCode(500, new { message = ex.Message });
             }
         }
 

@@ -236,6 +236,7 @@ namespace LoanAnnuityCalculatorAPI.Services
         {
             var currentDate = DateTime.Now;
             var payments = await _context.LoanPayments
+                .Include(lp => lp.Loan)
                 .Where(lp => lp.DueDate <= currentDate)
                 .OrderBy(lp => lp.LoanId)
                 .ThenBy(lp => lp.PaymentMonth)
@@ -244,54 +245,105 @@ namespace LoanAnnuityCalculatorAPI.Services
             var random = new Random(42); // Fixed seed for consistent results
             var updatedCount = 0;
 
-            foreach (var payment in payments)
-            {
-                // Create different payment scenarios based on position
-                var monthsFromStart = payment.PaymentMonth;
-                var probability = random.NextDouble();
+            // Group payments by loan to create consistent payment patterns per debtor
+            var paymentsByLoan = payments.GroupBy(p => p.LoanId).ToList();
 
-                // 70% on-time, 15% minor late, 10% moderate late, 4% severe late, 1% missed
-                if (probability < 0.70)
+            foreach (var loanPayments in paymentsByLoan)
+            {
+                // Determine overall payment behavior for this loan (70% good, 20% fair, 10% poor)
+                var behaviorScore = random.NextDouble();
+                double onTimeProbability;
+                double minorLateProbability;
+                double moderateLateProbability;
+                
+                if (behaviorScore < 0.70)
                 {
-                    // On-time payment
-                    payment.PaymentStatus = "OnTime";
-                    payment.PaymentDate = payment.DueDate;
-                    payment.DaysLate = 0;
+                    // Good payer: 85% on-time, 12% minor late, 3% moderate late
+                    onTimeProbability = 0.85;
+                    minorLateProbability = 0.97;
+                    moderateLateProbability = 1.0;
                 }
-                else if (probability < 0.85)
+                else if (behaviorScore < 0.90)
                 {
-                    // Minor late (1-7 days)
-                    var daysLate = random.Next(1, 8);
-                    payment.PaymentStatus = "LateMinor";
-                    payment.PaymentDate = payment.DueDate.AddDays(daysLate);
-                    payment.DaysLate = daysLate;
-                }
-                else if (probability < 0.95)
-                {
-                    // Moderate late (8-30 days)
-                    var daysLate = random.Next(8, 31);
-                    payment.PaymentStatus = "LateModerate";
-                    payment.PaymentDate = payment.DueDate.AddDays(daysLate);
-                    payment.DaysLate = daysLate;
-                }
-                else if (probability < 0.99)
-                {
-                    // Severe late (31+ days)
-                    var daysLate = random.Next(31, 91);
-                    payment.PaymentStatus = "LateSevere";
-                    payment.PaymentDate = payment.DueDate.AddDays(daysLate);
-                    payment.DaysLate = daysLate;
+                    // Fair payer: 60% on-time, 25% minor late, 12% moderate late, 3% severe
+                    onTimeProbability = 0.60;
+                    minorLateProbability = 0.85;
+                    moderateLateProbability = 0.97;
                 }
                 else
                 {
-                    // Missed payment
-                    payment.PaymentStatus = "Missed";
-                    payment.PaymentDate = null;
-                    payment.DaysLate = (int)(currentDate - payment.DueDate).TotalDays;
+                    // Poor payer: 30% on-time, 30% minor late, 25% moderate late, 15% severe/missed
+                    onTimeProbability = 0.30;
+                    minorLateProbability = 0.60;
+                    moderateLateProbability = 0.85;
                 }
 
-                payment.LastUpdatedDate = DateTime.Now;
-                updatedCount++;
+                var consecutiveLateCount = 0;
+
+                foreach (var payment in loanPayments.OrderBy(p => p.PaymentMonth))
+                {
+                    var probability = random.NextDouble();
+                    
+                    // Add early-term honeymoon effect (better payment in first 6 months)
+                    var honeymoonBoost = payment.PaymentMonth <= 6 ? 0.15 : 0;
+                    
+                    // Add deterioration effect if multiple consecutive late payments
+                    var deteriorationPenalty = consecutiveLateCount > 2 ? 0.1 : 0;
+
+                    var adjustedOnTimeProbability = Math.Min(0.95, onTimeProbability + honeymoonBoost - deteriorationPenalty);
+
+                    if (probability < adjustedOnTimeProbability)
+                    {
+                        // On-time payment (within 3 days grace period)
+                        var earlyDays = random.Next(-2, 4); // Can be 2 days early to 3 days late
+                        payment.PaymentStatus = earlyDays <= 0 ? "OnTime" : "OnTime";
+                        payment.PaymentDate = payment.DueDate.AddDays(earlyDays);
+                        payment.DaysLate = Math.Max(0, earlyDays);
+                        consecutiveLateCount = 0;
+                    }
+                    else if (probability < minorLateProbability)
+                    {
+                        // Minor late (4-14 days)
+                        var daysLate = random.Next(4, 15);
+                        payment.PaymentStatus = "LateMinor";
+                        payment.PaymentDate = payment.DueDate.AddDays(daysLate);
+                        payment.DaysLate = daysLate;
+                        consecutiveLateCount++;
+                    }
+                    else if (probability < moderateLateProbability)
+                    {
+                        // Moderate late (15-45 days)
+                        var daysLate = random.Next(15, 46);
+                        payment.PaymentStatus = "LateModerate";
+                        payment.PaymentDate = payment.DueDate.AddDays(daysLate);
+                        payment.DaysLate = daysLate;
+                        consecutiveLateCount++;
+                    }
+                    else
+                    {
+                        // Severe late or missed
+                        var missedProbability = random.NextDouble();
+                        if (missedProbability < 0.3)
+                        {
+                            // Missed payment (15% of problematic payments)
+                            payment.PaymentStatus = "Missed";
+                            payment.PaymentDate = null;
+                            payment.DaysLate = (int)(currentDate - payment.DueDate).TotalDays;
+                        }
+                        else
+                        {
+                            // Severe late (46-120 days)
+                            var daysLate = random.Next(46, 121);
+                            payment.PaymentStatus = "LateSevere";
+                            payment.PaymentDate = payment.DueDate.AddDays(daysLate);
+                            payment.DaysLate = daysLate;
+                        }
+                        consecutiveLateCount++;
+                    }
+
+                    payment.LastUpdatedDate = DateTime.Now;
+                    updatedCount++;
+                }
             }
 
             await _context.SaveChangesAsync();

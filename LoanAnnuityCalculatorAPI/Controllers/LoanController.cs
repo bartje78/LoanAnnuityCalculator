@@ -89,6 +89,8 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                 StartDate = loan.StartDate,
                 Status = loan.Status,
                 RedemptionSchedule = loan.RedemptionSchedule,
+                CreditLimit = loan.CreditLimit,
+                AmountDrawn = loan.AmountDrawn,
                 Collaterals = loan.LoanCollaterals?.Select(lc => new
                 {
                     CollateralId = lc.Collateral!.CollateralId,
@@ -240,8 +242,19 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
 
         try
         {
+            // For BuildingDepot loans, use AmountDrawn instead of LoanAmount
+            decimal calculationAmount = loan.LoanAmount;
+            if (loan.RedemptionSchedule == "BuildingDepot")
+            {
+                if (!loan.AmountDrawn.HasValue || loan.AmountDrawn.Value <= 0)
+                {
+                    return BadRequest(new { message = "Building Depot loans require a valid Amount Drawn value." });
+                }
+                calculationAmount = loan.AmountDrawn.Value;
+            }
+
             var (interestComponent, capitalComponent, remainingLoan) = _paymentCalculatorService.CalculateForSpecificMonth(
-                loan.LoanAmount,
+                calculationAmount,
                 loan.AnnualInterestRate,
                 loan.TenorMonths,
                 targetMonth,
@@ -296,6 +309,8 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                         StartDate = loan.StartDate,
                         Status = loan.Status,
                         RedemptionSchedule = loan.RedemptionSchedule,
+                        CreditLimit = loan.CreditLimit,
+                        AmountDrawn = loan.AmountDrawn,
                         Collaterals = loan.LoanCollaterals?.Select(lc => new
                         {
                             CollateralId = lc.Collateral!.CollateralId,
@@ -348,8 +363,19 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
 
             try
             {
+                // For BuildingDepot loans, use AmountDrawn instead of LoanAmount
+                decimal calculationAmount = loan.LoanAmount;
+                if (loan.RedemptionSchedule == "BuildingDepot")
+                {
+                    if (!loan.AmountDrawn.HasValue || loan.AmountDrawn.Value <= 0)
+                    {
+                        return BadRequest("Building Depot loans require a valid Amount Drawn value.");
+                    }
+                    calculationAmount = loan.AmountDrawn.Value;
+                }
+
                 var calculations = _paymentCalculatorService.CalculateForEntireTenor(
-                    loan.LoanAmount,
+                    calculationAmount,
                     loan.AnnualInterestRate,
                     loan.TenorMonths,
                     loan.InterestOnlyMonths,
@@ -427,7 +453,9 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                         InterestOnlyMonths = newLoan.InterestOnlyMonths,
                         StartDate = newLoan.StartDate,
                         Status = newLoan.Status,
-                        RedemptionSchedule = newLoan.RedemptionSchedule
+                        RedemptionSchedule = newLoan.RedemptionSchedule,
+                        CreditLimit = newLoan.CreditLimit,
+                        AmountDrawn = newLoan.AmountDrawn
                     }
                 });
             }
@@ -464,12 +492,15 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
 
                 // Update the loan properties
                 existingLoan.LoanAmount = updatedLoan.LoanAmount;
+                existingLoan.OutstandingAmount = updatedLoan.OutstandingAmount; // Allow manual correction for import fixes
                 existingLoan.AnnualInterestRate = updatedLoan.AnnualInterestRate;
                 existingLoan.TenorMonths = updatedLoan.TenorMonths;
                 existingLoan.InterestOnlyMonths = updatedLoan.InterestOnlyMonths;
                 existingLoan.StartDate = updatedLoan.StartDate;
                 existingLoan.Status = updatedLoan.Status;
                 existingLoan.RedemptionSchedule = updatedLoan.RedemptionSchedule;
+                existingLoan.CreditLimit = updatedLoan.CreditLimit;
+                existingLoan.AmountDrawn = updatedLoan.AmountDrawn;
 
                 await _dbContext.SaveChangesAsync();
 
@@ -486,7 +517,9 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                         InterestOnlyMonths = existingLoan.InterestOnlyMonths,
                         StartDate = existingLoan.StartDate,
                         Status = existingLoan.Status,
-                        RedemptionSchedule = existingLoan.RedemptionSchedule
+                        RedemptionSchedule = existingLoan.RedemptionSchedule,
+                        CreditLimit = existingLoan.CreditLimit,
+                        AmountDrawn = existingLoan.AmountDrawn
                     }
                 });
             }
@@ -754,6 +787,17 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
 
             try
             {
+                // For BuildingDepot loans, use AmountDrawn instead of LoanAmount
+                decimal calculationAmount = loan.LoanAmount;
+                if (loan.RedemptionSchedule == "BuildingDepot")
+                {
+                    if (!loan.AmountDrawn.HasValue || loan.AmountDrawn.Value <= 0)
+                    {
+                        return BadRequest(new { message = "Building Depot loans require a valid Amount Drawn value." });
+                    }
+                    calculationAmount = loan.AmountDrawn.Value;
+                }
+
                 // Calculate the period difference including fractional months
                 decimal periodDifference = _fractionalPaymentCalculator.CalculatePeriodDifference(loan.StartDate, invoiceDay);
                 
@@ -775,9 +819,9 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                     });
                 }
 
-                // Calculate fractional payment
+                // Calculate fractional payment using the correct amount
                 var paymentResult = _fractionalPaymentCalculator.CalculateFractionalPayment(
-                    loan.LoanAmount,
+                    calculationAmount,
                     loan.AnnualInterestRate,
                     loan.TenorMonths,
                     loan.InterestOnlyMonths,
