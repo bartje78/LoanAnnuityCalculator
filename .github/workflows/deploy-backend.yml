@@ -45,57 +45,14 @@ jobs:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
         package: ./LoanAnnuityCalculatorAPI/publish
-
-    - name: Configure App Settings
-      uses: azure/appservice-settings@v1
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        app-settings-json: |
-          [
-            {
-              "name": "ASPNETCORE_ENVIRONMENT",
-              "value": "Production"
-            },
-            {
-              "name": "ConnectionStrings__DefaultConnection",
-              "value": "${{ secrets.AZURE_SQL_CONNECTION_STRING }}"
-            },
-            {
-              "name": "JwtSettings__SecretKey",
-              "value": "${{ secrets.JWT_SECRET_KEY }}"
-            },
-            {
-              "name": "JwtSettings__Issuer",
-              "value": "https://loancalculator-api-loanportal.azurewebsites.net"
-            },
-            {
-              "name": "JwtSettings__Audience",
-              "value": "https://loancalculator-frontend-loanportal.azurewebsites.net"
-            },
-            {
-              "name": "JwtSettings__ExpirationMinutes",
-              "value": "30"
-            },
-            {
-              "name": "RateLimiting__PermitLimit",
-              "value": "100"
-            },
-            {
-              "name": "RateLimiting__Window",
-              "value": "60"
-            },
-            {
-              "name": "RateLimiting__AuthPermitLimit",
-              "value": "5"
-            },
-            {
-              "name": "AllowedOrigins__0",
-              "value": "https://loancalculator-frontend-loanportal.azurewebsites.net"
-            }
-          ]
-        
-    - name: Restart Web App
-      uses: azure/CLI@v1
-      with:
-        inlineScript: |
-          az webapp restart --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group LoanCalculatorRG
+      env:
+        ASPNETCORE_ENVIRONMENT: Production
+        ConnectionStrings__DefaultConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+        JwtSettings__SecretKey: ${{ secrets.JWT_SECRET_KEY }}
+        JwtSettings__Issuer: https://loancalculator-api-loanportal.azurewebsites.net
+        JwtSettings__Audience: https://loancalculator-frontend-loanportal.azurewebsites.net
+        JwtSettings__ExpirationMinutes: 30
+        RateLimiting__PermitLimit: 100
+        RateLimiting__Window: 60
+        RateLimiting__AuthPermitLimit: 5
+        AllowedOrigins__0: https://loancalculator-frontend-loanportal.azurewebsites.net
