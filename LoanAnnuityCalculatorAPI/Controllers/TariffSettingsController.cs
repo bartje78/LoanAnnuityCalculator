@@ -30,6 +30,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 var settings = await _context.TariffSettings
                     .Include(s => s.LtvTiers.OrderBy(t => t.SortOrder))
                     .Include(s => s.CreditRatings.OrderBy(r => r.SortOrder))
+                    .Include(s => s.ImpactDiscounts.OrderBy(i => i.SortOrder))
                     .FirstOrDefaultAsync(s => s.IsActive);
 
                 if (settings == null)
@@ -50,6 +51,11 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                     {
                         Rating = r.Rating,
                         Spread = r.Spread
+                    }).ToList(),
+                    ImpactDiscounts = settings.ImpactDiscounts.Select(i => new ImpactDiscountDto
+                    {
+                        Level = i.Level,
+                        Discount = i.Discount
                     }).ToList()
                 };
 
@@ -105,6 +111,20 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                     });
                 }
 
+                // Add impact discounts
+                if (dto.ImpactDiscounts != null)
+                {
+                    for (int i = 0; i < dto.ImpactDiscounts.Count; i++)
+                    {
+                        newSettings.ImpactDiscounts.Add(new ImpactDiscount
+                        {
+                            Level = dto.ImpactDiscounts[i].Level,
+                            Discount = dto.ImpactDiscounts[i].Discount,
+                            SortOrder = i
+                        });
+                    }
+                }
+
                 _context.TariffSettings.Add(newSettings);
                 await _context.SaveChangesAsync();
 
@@ -149,6 +169,14 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                     new CreditRatingSpreadDto { Rating = "BB", Spread = 200 },
                     new CreditRatingSpreadDto { Rating = "B", Spread = 350 },
                     new CreditRatingSpreadDto { Rating = "CCC", Spread = 500 }
+                },
+                ImpactDiscounts = new List<ImpactDiscountDto>
+                {
+                    new ImpactDiscountDto { Level = "very-high", Discount = 50 },
+                    new ImpactDiscountDto { Level = "high", Discount = 40 },
+                    new ImpactDiscountDto { Level = "medium", Discount = 30 },
+                    new ImpactDiscountDto { Level = "low", Discount = 20 },
+                    new ImpactDiscountDto { Level = "very-low", Discount = 0 }
                 }
             };
         }
@@ -160,6 +188,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         public int Id { get; set; }
         public List<LtvSpreadTierDto> LtvTiers { get; set; } = new();
         public List<CreditRatingSpreadDto> CreditRatings { get; set; } = new();
+        public List<ImpactDiscountDto> ImpactDiscounts { get; set; } = new();
     }
 
     public class LtvSpreadTierDto
@@ -172,5 +201,11 @@ namespace LoanAnnuityCalculatorAPI.Controllers
     {
         public string Rating { get; set; } = string.Empty;
         public decimal Spread { get; set; }
+    }
+
+    public class ImpactDiscountDto
+    {
+        public string Level { get; set; } = string.Empty;
+        public decimal Discount { get; set; }
     }
 }

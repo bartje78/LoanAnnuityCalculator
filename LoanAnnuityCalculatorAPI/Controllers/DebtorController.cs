@@ -88,6 +88,9 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         {
             try
             {
+                Console.WriteLine($"UpdateDebtor called for ID: {id}");
+                Console.WriteLine($"Received CorporateTaxRate: {updatedDebtor.CorporateTaxRate}");
+                
                 if (id != updatedDebtor.DebtorID)
                 {
                     return BadRequest(new { Message = "Debtor ID mismatch." });
@@ -126,8 +129,13 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 existingDebtor.Signatory2Function = updatedDebtor.Signatory2Function;
                 existingDebtor.Signatory3Name = updatedDebtor.Signatory3Name;
                 existingDebtor.Signatory3Function = updatedDebtor.Signatory3Function;
+                
+                // Update corporate tax rate
+                existingDebtor.CorporateTaxRate = updatedDebtor.CorporateTaxRate;
+                Console.WriteLine($"Set CorporateTaxRate to: {existingDebtor.CorporateTaxRate}");
 
                 await _dbContext.SaveChangesAsync();
+                Console.WriteLine($"Saved to database. Reading back: {existingDebtor.CorporateTaxRate}");
 
                 return Ok(new { Message = "Debtor updated successfully.", Debtor = existingDebtor });
             }

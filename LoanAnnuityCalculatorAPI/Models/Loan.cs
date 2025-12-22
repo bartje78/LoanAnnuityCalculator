@@ -37,6 +37,13 @@ namespace LoanAnnuityCalculatorAPI.Models.Loan
         
         public string RedemptionSchedule { get; set; } = "Annuity";
         
+        // Security type for the loan
+        public string? SecurityType { get; set; }
+        
+        // First mortgage amount (subordination) - external first lien on the collateral package
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? FirstMortgageAmount { get; set; }
+        
         // Building Depot specific fields
         public decimal? CreditLimit { get; set; }  // Maximum amount that can be drawn
         public decimal? AmountDrawn { get; set; }  // Actual amount drawn from the credit facility

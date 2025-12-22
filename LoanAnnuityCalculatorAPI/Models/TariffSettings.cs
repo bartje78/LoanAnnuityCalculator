@@ -17,6 +17,7 @@ namespace LoanAnnuityCalculatorAPI.Models
         // Navigation properties
         public ICollection<LtvSpreadTier> LtvTiers { get; set; } = new List<LtvSpreadTier>();
         public ICollection<CreditRatingSpread> CreditRatings { get; set; } = new List<CreditRatingSpread>();
+        public ICollection<ImpactDiscount> ImpactDiscounts { get; set; } = new List<ImpactDiscount>();
     }
 
     public class LtvSpreadTier
@@ -57,6 +58,29 @@ namespace LoanAnnuityCalculatorAPI.Models
         [Required]
         [Range(0, 10000)]
         public decimal Spread { get; set; } // in basis points
+
+        public int SortOrder { get; set; }
+
+        // Navigation property
+        [ForeignKey("TariffSettingsId")]
+        public TariffSettings TariffSettings { get; set; } = null!;
+    }
+
+    public class ImpactDiscount
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        public int TariffSettingsId { get; set; }
+
+        [Required]
+        [StringLength(20)]
+        public string Level { get; set; } = string.Empty; // very-high, high, medium, low, very-low
+
+        [Required]
+        [Range(0, 100)]
+        public decimal Discount { get; set; } // Percentage discount (e.g., 50 = 50% off base rate)
 
         public int SortOrder { get; set; }
 

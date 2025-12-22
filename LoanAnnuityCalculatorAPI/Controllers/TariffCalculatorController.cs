@@ -41,8 +41,9 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 if (request.LoanTerm <= 0)
                     return BadRequest("Loan term must be greater than zero.");
 
-                if (request.CollateralValue <= 0)
-                    return BadRequest("Collateral value must be greater than zero.");
+                // Allow CollateralValue = 0 for unsecured loans
+                if (request.CollateralValue < 0)
+                    return BadRequest("Collateral value cannot be negative.");
 
                 if (request.InterestOnlyPeriod < 0)
                     return BadRequest("Interest-only period cannot be negative.");
@@ -50,17 +51,26 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 if (request.InterestOnlyPeriod > request.LoanTerm)
                     return BadRequest("Interest-only period cannot exceed loan term.");
 
-                // Calculate effective collateral
-                decimal effectiveCollateral = request.CollateralValue - request.SubordinationAmount;
-                effectiveCollateral = effectiveCollateral * (1 - request.LiquidityHaircut / 100);
-
-                if (effectiveCollateral <= 0)
-                    return BadRequest("Effective collateral must be greater than zero after subordination and haircut.");
-
-                if (request.LoanAmount > effectiveCollateral)
+                // For secured loans, validate effective collateral
+                if (request.CollateralValue > 0)
                 {
-                    decimal ltv = request.LoanAmount / effectiveCollateral * 100;
-                    _logger.LogWarning("High LTV detected: {LTV}%", ltv);
+                    // Calculate effective collateral
+                    decimal effectiveCollateral = request.CollateralValue - request.SubordinationAmount;
+                    effectiveCollateral = effectiveCollateral * (1 - request.LiquidityHaircut / 100);
+
+                    if (effectiveCollateral <= 0)
+                        return BadRequest("Effective collateral must be greater than zero after subordination and haircut.");
+
+                    if (request.LoanAmount > effectiveCollateral)
+                    {
+                        decimal ltv = request.LoanAmount / effectiveCollateral * 100;
+                        _logger.LogWarning("High LTV detected: {LTV}%", ltv);
+                    }
+                }
+                else
+                {
+                    // Unsecured loan
+                    _logger.LogInformation("Processing unsecured loan (no collateral)");
                 }
 
                 var result = await _tariffCalculatorService.CalculateTariffAsync(request);

@@ -27,6 +27,8 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         private readonly CollateralValidationService _collateralValidationService;
         private readonly IStatusCalculationService _statusCalculationService;
         private readonly FractionalPaymentCalculator _fractionalPaymentCalculator;
+        private readonly LtvCalculationService _ltvCalculationService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public LoanController(
             LoanDbContext dbContext,
@@ -36,7 +38,9 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             LoanDateHelper loanDateHelper,
             CollateralValidationService collateralValidationService,
             IStatusCalculationService statusCalculationService,
-            FractionalPaymentCalculator fractionalPaymentCalculator)
+            FractionalPaymentCalculator fractionalPaymentCalculator,
+            LtvCalculationService ltvCalculationService,
+            IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
             _annuityCalculatorService = annuityCalculatorService;
@@ -46,6 +50,8 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             _collateralValidationService = collateralValidationService;
             _statusCalculationService = statusCalculationService;
             _fractionalPaymentCalculator = fractionalPaymentCalculator;
+            _ltvCalculationService = ltvCalculationService;
+            _httpContextAccessor = httpContextAccessor;
         }
 
 [HttpGet]
@@ -69,10 +75,27 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
         // Map loans to a clean response format
         var cleanLoans = new List<object>();
         
+        // Calculate LTV for all loans at once (more efficient)
+        Dictionary<int, decimal> ltvValues;
+        try
+        {
+            ltvValues = await _ltvCalculationService.CalculateLtvForDebtorLoansAsync(debtorId);
+            Console.WriteLine($"Calculated LTV for {ltvValues.Count} loans");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error calculating LTV: {ex.Message}");
+            ltvValues = new Dictionary<int, decimal>();
+        }
+        
         foreach (var loan in loans)
         {
             // Calculate status using the configurable service
             loan.Status = await _statusCalculationService.CalculateStatusAsync(loan);
+
+            // Get LTV for this loan
+            decimal ltv = ltvValues.ContainsKey(loan.LoanID) ? ltvValues[loan.LoanID] : 0;
+            Console.WriteLine($"Loan {loan.LoanID} LTV: {ltv}");
 
             cleanLoans.Add(new
             {
@@ -89,8 +112,11 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                 StartDate = loan.StartDate,
                 Status = loan.Status,
                 RedemptionSchedule = loan.RedemptionSchedule,
+                SecurityType = loan.SecurityType,
+                FirstMortgageAmount = loan.FirstMortgageAmount,
                 CreditLimit = loan.CreditLimit,
                 AmountDrawn = loan.AmountDrawn,
+                LTV = ltv, // Add LTV to the response
                 Collaterals = loan.LoanCollaterals?.Select(lc => new
                 {
                     CollateralId = lc.Collateral!.CollateralId,
@@ -124,6 +150,60 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
         return StatusCode(500, new { message = "An error occurred while retrieving loans.", error = ex.Message });
     }
 }
+
+[HttpGet("ltv/{loanId}")]
+public async Task<IActionResult> GetLoanLtv(int loanId)
+{
+    try
+    {
+        var ltv = await _ltvCalculationService.CalculateLtvAsync(loanId);
+        return Ok(new { LoanID = loanId, LTV = ltv });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { message = "An error occurred while calculating LTV.", error = ex.Message });
+    }
+}
+
+/// <summary>
+/// Get all building depot loans with available credit
+/// </summary>
+[HttpGet("building-depots")]
+public async Task<IActionResult> GetBuildingDepots()
+{
+    try
+    {
+        var tenantId = _httpContextAccessor.HttpContext?.Items["TenantId"] as int?;
+
+        var buildingDepots = await _dbContext.Loans
+            .Where(l => l.RedemptionSchedule == "BuildingDepot" && 
+                       l.Status == "Active" &&
+                       (!tenantId.HasValue || l.TenantId == tenantId))
+            .Include(l => l.DebtorDetails)
+            .Select(l => new
+            {
+                LoanID = l.LoanID,
+                DebtorID = l.DebtorID,
+                DebtorName = l.DebtorDetails!.DebtorName,
+                LoanAmount = l.LoanAmount,
+                CreditLimit = l.CreditLimit ?? 0,
+                AmountDrawn = l.AmountDrawn ?? 0,
+                AvailableCredit = (l.CreditLimit ?? 0) - (l.AmountDrawn ?? 0),
+                AnnualInterestRate = l.AnnualInterestRate,
+                StartDate = l.StartDate,
+                Status = l.Status
+            })
+            .OrderBy(l => l.DebtorName)
+            .ToListAsync();
+
+        return Ok(buildingDepots);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { message = "An error occurred while retrieving building depots.", error = ex.Message });
+    }
+}
+
 [HttpPost("uploadLoans")]
         public async Task<IActionResult> UploadLoans(IFormFile file)
         {
@@ -454,6 +534,8 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                         StartDate = newLoan.StartDate,
                         Status = newLoan.Status,
                         RedemptionSchedule = newLoan.RedemptionSchedule,
+                        SecurityType = newLoan.SecurityType,
+                        FirstMortgageAmount = newLoan.FirstMortgageAmount,
                         CreditLimit = newLoan.CreditLimit,
                         AmountDrawn = newLoan.AmountDrawn
                     }
@@ -499,6 +581,8 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                 existingLoan.StartDate = updatedLoan.StartDate;
                 existingLoan.Status = updatedLoan.Status;
                 existingLoan.RedemptionSchedule = updatedLoan.RedemptionSchedule;
+                existingLoan.SecurityType = updatedLoan.SecurityType;
+                existingLoan.FirstMortgageAmount = updatedLoan.FirstMortgageAmount;
                 existingLoan.CreditLimit = updatedLoan.CreditLimit;
                 existingLoan.AmountDrawn = updatedLoan.AmountDrawn;
 
@@ -518,6 +602,8 @@ public async Task<IActionResult> GetLoansByDebtorId([FromQuery] int debtorId)
                         StartDate = existingLoan.StartDate,
                         Status = existingLoan.Status,
                         RedemptionSchedule = existingLoan.RedemptionSchedule,
+                        SecurityType = existingLoan.SecurityType,
+                        FirstMortgageAmount = existingLoan.FirstMortgageAmount,
                         CreditLimit = existingLoan.CreditLimit,
                         AmountDrawn = existingLoan.AmountDrawn
                     }

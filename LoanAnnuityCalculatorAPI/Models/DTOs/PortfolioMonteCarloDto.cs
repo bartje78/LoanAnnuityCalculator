@@ -62,6 +62,9 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         
         // Correlation impact
         public decimal DiversificationBenefit { get; set; } // Reduction in risk due to diversification (%)
+        
+        // Pre-aggregated histogram data
+        public PortfolioHistograms Histograms { get; set; } = new PortfolioHistograms();
     }
 
     public class DebtorSimulationSummary
@@ -74,6 +77,18 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal ExpectedLossPercentage { get; set; }
         public Dictionary<Models.Sector, decimal> SectorWeights { get; set; } = new Dictionary<Models.Sector, decimal>();
         public string PrimaryPropertyType { get; set; } = string.Empty;
+        
+        // LGD distribution statistics
+        public decimal AverageLGD { get; set; }
+        public decimal MedianLGD { get; set; }
+        public decimal LGD_P10 { get; set; }
+        public decimal LGD_P90 { get; set; }
+        public decimal LGD_P95 { get; set; }
+        public decimal LGD_P99 { get; set; }
+        public decimal LGD_Min { get; set; }
+        public decimal LGD_Max { get; set; }
+        public int LGD_ZeroLossCount { get; set; }
+        public decimal LGD_ZeroLossPercent { get; set; }
     }
 
     public class PortfolioYearlyStatistics
@@ -118,5 +133,17 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal TotalDebt { get; set; }
         public decimal TotalEquity { get; set; }
         public int ActiveDefaults { get; set; } // Number of debtors in default at end of year
+    }
+
+    public class HistogramBin
+    {
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public class PortfolioHistograms
+    {
+        public List<HistogramBin> DefaultCountBins { get; set; } = new List<HistogramBin>();
+        public List<HistogramBin> TotalLossBins { get; set; } = new List<HistogramBin>();
     }
 }

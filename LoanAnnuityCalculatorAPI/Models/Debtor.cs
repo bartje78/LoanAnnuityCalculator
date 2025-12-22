@@ -47,6 +47,10 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         // Status
         public bool IsProspect { get; set; } = false;
         
+        // Corporate tax rate specific to this debtor (e.g., 0.21 for 21%)
+        [Column(TypeName = "decimal(5,4)")]
+        public decimal? CorporateTaxRate { get; set; }
+        
         // Signatory 1
         public string Signatory1Name { get; set; } = string.Empty;
         public string Signatory1Function { get; set; } = string.Empty;
@@ -89,6 +93,14 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public decimal InterestExpense { get; set; }
         public decimal TaxExpense { get; set; }
         public decimal NetIncome { get; set; }
+        
+        // NEW: Enhanced P&L fields
+        public decimal? Depreciation { get; set; } // Afschrijvingen
+        public decimal? EBIT { get; set; } // Earnings Before Interest & Tax (EBITDA - Depreciation)
+        public decimal? EBT { get; set; } // Earnings Before Tax (EBIT - Interest)
+        public decimal? Cashflow { get; set; } // NetIncome + Depreciation
+        public decimal? CapitalRepayment { get; set; } // Loan capital repayments
+        public decimal? FreeCashflow { get; set; } // Cashflow - CapitalRepayment
         
         // Legacy fields (optional for backwards compatibility)
         public decimal? GrossRevenue { get; set; }

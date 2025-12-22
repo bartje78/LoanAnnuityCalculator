@@ -321,10 +321,10 @@ namespace LoanAnnuityCalculatorAPI.Services
                 var newValue = oldValue * (1 + expectedReturn + (decimal)shock);
                 collateralValues[loan.LoanId] = Math.Max(0, newValue);
 
-                if (simulationNumber == 1 && year <= 3)
+                if (simulationNumber <= 5 && year <= 3)
                 {
-                    Console.WriteLine($"[COLLATERAL UPDATE] Sim#{simulationNumber}, Year {year}, Loan {loan.LoanId}: " +
-                        $"{oldValue:N2} → {collateralValues[loan.LoanId]:N2} (shock: {shock:P2})");
+                    Console.WriteLine($"[COLLATERAL UPDATE] Sim#{simulationNumber}, Year {year}, Loan {loan.LoanId} ({loan.CollateralPropertyType}): " +
+                        $"{oldValue:N2} → {collateralValues[loan.LoanId]:N2} (shock: {shock:P2}, expectedReturn: {expectedReturn:P2})");
                 }
             }
         }

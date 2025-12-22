@@ -58,6 +58,7 @@ namespace LoanAnnuityCalculatorAPI.Data
         public DbSet<TariffSettings> TariffSettings { get; set; }
         public DbSet<LtvSpreadTier> LtvSpreadTiers { get; set; }
         public DbSet<CreditRatingSpread> CreditRatingSpreads { get; set; }
+        public DbSet<ImpactDiscount> ImpactDiscounts { get; set; }
         public DbSet<ModelSettings> ModelSettings { get; set; }
         public DbSet<PropertyTypeParameters> PropertyTypeParameters { get; set; }
         public DbSet<SectorCorrelation> SectorCorrelations { get; set; }
@@ -66,6 +67,10 @@ namespace LoanAnnuityCalculatorAPI.Data
         public DbSet<StandardRevenueCategory> StandardRevenueCategories { get; set; }
         public DbSet<ContractTextBlock> ContractTextBlocks { get; set; }
         public DbSet<UserPreference> UserPreferences { get; set; }
+        public DbSet<BuildingDepotWithdrawal> BuildingDepotWithdrawals { get; set; }
+        public DbSet<BuildingDepotWithdrawalLineItem> BuildingDepotWithdrawalLineItems { get; set; }
+        public DbSet<ExactOnlineToken> ExactOnlineTokens { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

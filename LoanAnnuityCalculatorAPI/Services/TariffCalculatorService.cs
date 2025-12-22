@@ -28,20 +28,61 @@ namespace LoanAnnuityCalculatorAPI.Services
             var response = new TariffCalculationResponse();
 
             // 1. Calculate LTV
-            decimal effectiveCollateral = request.CollateralValue - request.SubordinationAmount;
-            effectiveCollateral = effectiveCollateral * (1 - request.LiquidityHaircut / 100);
-            response.LTV = request.LoanAmount / effectiveCollateral * 100;
+            if (request.CollateralValue > 0)
+            {
+                decimal effectiveCollateral = request.CollateralValue - request.SubordinationAmount;
+                effectiveCollateral = effectiveCollateral * (1 - request.LiquidityHaircut / 100);
+                response.LTV = request.LoanAmount / effectiveCollateral * 100;
+            }
+            else
+            {
+                // Unsecured loan - use 999 as marker for maximum LTV spread
+                response.LTV = 999;
+            }
 
-            // 2. Get spreads from database or use provided values
-            response.BaseRate = request.BaseRate;
-            response.LtvSpread = request.LtvSpread ?? await GetLtvSpreadFromDatabase(response.LTV);
-            response.RatingSpread = request.RatingSpread ?? await GetRatingSpreadFromDatabase(request.CreditRating);
-            response.ExtraSpread = request.ExtraSpread ?? 0;
+            // 2. Determine final interest rate
+            if (request.ManualRate.HasValue)
+            {
+                // Use manual override rate for all calculations
+                response.InterestRate = request.ManualRate.Value;
+                
+                // Still calculate spreads for display purposes but they won't affect the final rate
+                response.BaseRate = request.BaseRate;
+                response.LtvSpread = request.LtvSpread ?? await GetLtvSpreadFromDatabase(response.LTV);
+                response.RatingSpread = request.RatingSpread ?? await GetRatingSpreadFromDatabase(request.CreditRating);
+                response.ExtraSpread = request.ExtraSpread ?? 0;
+                
+                Console.WriteLine($"[TARIFF] Using manual rate: {response.InterestRate:P2} (calculated would have been: {response.BaseRate + response.LtvSpread + response.RatingSpread + response.ExtraSpread:P2})");
+            }
+            else
+            {
+                // Calculate rate from components
+                response.BaseRate = request.BaseRate;
+                response.LtvSpread = request.LtvSpread ?? await GetLtvSpreadFromDatabase(response.LTV);
+                response.RatingSpread = request.RatingSpread ?? await GetRatingSpreadFromDatabase(request.CreditRating);
+                response.ExtraSpread = request.ExtraSpread ?? 0;
+                
+                // Apply impact discount if specified
+                decimal discountedBaseRate = response.BaseRate;
+                response.ImpactDiscount = 0;
+                
+                if (!string.IsNullOrEmpty(request.ImpactLevel))
+                {
+                    var impactDiscountPercentage = await GetImpactDiscountFromDatabase(request.ImpactLevel);
+                    if (impactDiscountPercentage > 0)
+                    {
+                        // Calculate actual discount amount: BaseRate × (discount% / 100)
+                        response.ImpactDiscount = response.BaseRate * (impactDiscountPercentage / 100);
+                        // Apply discount: BaseRate × (1 - discount% / 100)
+                        discountedBaseRate = response.BaseRate * (1 - impactDiscountPercentage / 100);
+                        Console.WriteLine($"[TARIFF] Impact level '{request.ImpactLevel}': {impactDiscountPercentage}% discount on base rate {response.BaseRate:P2} = -{response.ImpactDiscount:P2}, discounted base: {discountedBaseRate:P2}");
+                    }
+                }
+                
+                response.InterestRate = discountedBaseRate + response.LtvSpread + response.RatingSpread + response.ExtraSpread;
+            }
 
-            // 3. Calculate interest rate
-            response.InterestRate = response.BaseRate + response.LtvSpread + response.RatingSpread + response.ExtraSpread;
-
-            // 4. Generate payment schedule using the appropriate redemption scheme (moved before payment details calculation)
+            // 3. Generate payment schedule using the final interest rate (manual or calculated)
             var schedule = _paymentCalculator.CalculateForEntireTenor(
                 request.LoanAmount,
                 response.InterestRate,
@@ -58,7 +99,7 @@ namespace LoanAnnuityCalculatorAPI.Services
                 RemainingLoan = Math.Round(s.remainingLoan, 2)
             }).ToList();
 
-            // 5. Calculate payment details from the schedule
+            // 4. Calculate payment details from the schedule
             var (monthlyPayment, totalInterest, totalAmount) = CalculatePaymentDetailsFromSchedule(
                 request.LoanAmount,
                 response.PaymentSchedule,
@@ -69,10 +110,11 @@ namespace LoanAnnuityCalculatorAPI.Services
             response.TotalInterest = totalInterest;
             response.TotalAmount = totalAmount;
 
-            // 6. Generate chart data
+            // 5. Generate chart data
             response.ChartData = GenerateChartData(response.PaymentSchedule);
 
-            // 7. Calculate BSE (Bruto Steun Equivalent) with detailed breakdown
+            // 6. Calculate BSE (Bruto Steun Equivalent) with detailed breakdown
+            // BSE calculation uses the final rate (manual or calculated) vs market rate
             var (bse, breakdown) = await CalculateBSEWithBreakdownAsync(request, response);
             response.BSE = bse;
             response.BseBreakdown = breakdown;
@@ -233,6 +275,27 @@ namespace LoanAnnuityCalculatorAPI.Services
 
             // Convert from basis points to percentage
             return ratingSpread != null ? ratingSpread.Spread / 100m : 0;
+        }
+
+        /// <summary>
+        /// Get impact discount percentage from database based on impact level
+        /// </summary>
+        private async Task<decimal> GetImpactDiscountFromDatabase(string impactLevel)
+        {
+            // Get active tariff settings
+            var settings = await _context.TariffSettings
+                .Include(t => t.ImpactDiscounts)
+                .FirstOrDefaultAsync(t => t.IsActive);
+
+            if (settings == null || !settings.ImpactDiscounts.Any())
+                return 0;
+
+            // Find the appropriate impact discount
+            var impactDiscount = settings.ImpactDiscounts
+                .FirstOrDefault(i => i.Level.Equals(impactLevel, StringComparison.OrdinalIgnoreCase));
+
+            // Return discount percentage (stored as percentage, not basis points)
+            return impactDiscount?.Discount ?? 0;
         }
 
         /// <summary>

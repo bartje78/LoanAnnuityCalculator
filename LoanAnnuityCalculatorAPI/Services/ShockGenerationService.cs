@@ -168,9 +168,14 @@ namespace LoanAnnuityCalculatorAPI.Services
 
             foreach (var propertyType in collateralTypes)
             {
-                // Calculate weighted correlation with sectors
-                double correlatedShock = 0;
-                double sumWeightedCorrelations = 0;
+                // For collateral, we use a simpler approach:
+                // Generate an independent normal shock scaled by collateral volatility
+                double volatility = (double)collateralVolatilities[propertyType];
+                double independentNormal = GenerateStandardNormal();
+                
+                // Apply correlation with sector shocks (weighted average)
+                double correlatedComponent = 0;
+                double totalCorrelation = 0;
 
                 foreach (var sector in sectors)
                 {
@@ -178,22 +183,25 @@ namespace LoanAnnuityCalculatorAPI.Services
                     if (sectorCollateralCorrelations.TryGetValue(correlationKey, out decimal correlation) &&
                         sectorShocks.TryGetValue(sector, out double sectorShock))
                     {
-                        // Contribution from this sector to collateral shock
-                        // Note: sectorShock already includes volatility, so we just apply correlation
-                        correlatedShock += (double)correlation * sectorShock;
-                        sumWeightedCorrelations += Math.Abs((double)correlation);
+                        correlatedComponent += (double)correlation * sectorShock;
+                        totalCorrelation += Math.Abs((double)correlation);
                     }
                 }
 
-                // Add independent component to ensure proper volatility
-                double volatility = (double)collateralVolatilities[propertyType];
-                double correlatedVariance = Math.Pow(correlatedShock, 2);
-                double totalVariance = Math.Pow(volatility, 2);
-                double independentStdDev = Math.Sqrt(Math.Max(0, totalVariance - correlatedVariance));
-                
-                double independentShock = GenerateStandardNormal() * independentStdDev;
+                // Normalize the correlated component by total correlation weight
+                // This prevents amplification when summing multiple correlated sectors
+                if (totalCorrelation > 0)
+                {
+                    correlatedComponent = correlatedComponent / totalCorrelation;
+                }
 
-                collateralShocks[propertyType] = correlatedShock + independentShock;
+                // The final shock is a blend of correlated (from sectors) and independent components
+                // If totalCorrelation is high, use more of the correlated shock
+                // If totalCorrelation is low, use more of the independent shock
+                double correlationStrength = Math.Min(1.0, totalCorrelation);
+                double independentStrength = Math.Sqrt(Math.Max(0, 1.0 - Math.Pow(correlationStrength, 2)));
+                
+                collateralShocks[propertyType] = correlatedComponent + independentNormal * independentStrength * volatility;
             }
 
             return collateralShocks;
@@ -250,6 +258,58 @@ namespace LoanAnnuityCalculatorAPI.Services
             }
 
             return L;
+        }
+
+        /// <summary>
+        /// Generate independent collateral shocks (no sector correlation)
+        /// Used when sector data is not available
+        /// </summary>
+        public SimulationShockSet GenerateIndependentCollateralShocks(
+            int numberOfSimulations,
+            int simulationYears,
+            List<string> collateralTypes,
+            Dictionary<string, decimal> collateralVolatilities)
+        {
+            var shockSet = new SimulationShockSet();
+            
+            Console.WriteLine($"[SHOCK GENERATION] ===== INDEPENDENT SHOCK GENERATION CALLED =====");
+            Console.WriteLine($"[SHOCK GENERATION] Generating independent shocks for {numberOfSimulations} simulations, {simulationYears} years");
+            Console.WriteLine($"[SHOCK GENERATION] Collateral types: {string.Join(", ", collateralTypes)}");
+            Console.WriteLine($"[SHOCK GENERATION] Volatilities: {string.Join(", ", collateralVolatilities.Select(kvp => $"{kvp.Key}: {kvp.Value:P2}"))})");
+
+            for (int sim = 1; sim <= numberOfSimulations; sim++)
+            {
+                shockSet.SectorShocks[sim] = new Dictionary<int, Dictionary<Sector, double>>();
+                shockSet.CollateralShocks[sim] = new Dictionary<int, Dictionary<string, double>>();
+
+                for (int year = 1; year <= simulationYears; year++)
+                {
+                    // Empty sector shocks
+                    shockSet.SectorShocks[sim][year] = new Dictionary<Sector, double>();
+                    
+                    // Generate independent collateral shocks
+                    var collateralShocks = new Dictionary<string, double>();
+                    foreach (var propertyType in collateralTypes)
+                    {
+                        double volatility = (double)collateralVolatilities[propertyType];
+                        collateralShocks[propertyType] = GenerateStandardNormal() * volatility;
+                    }
+                    
+                    shockSet.CollateralShocks[sim][year] = collateralShocks;
+
+                    // Log first simulation for debugging
+                    if (sim == 1 && year <= 3)
+                    {
+                        Console.WriteLine($"[SHOCK GEN] Sim#{sim}, Year {year}:");
+                        foreach (var kvp in collateralShocks)
+                        {
+                            Console.WriteLine($"  Collateral {kvp.Key}: {kvp.Value:P2}");
+                        }
+                    }
+                }
+            }
+
+            return shockSet;
         }
 
         /// <summary>

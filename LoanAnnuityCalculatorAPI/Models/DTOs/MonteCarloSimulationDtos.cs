@@ -137,6 +137,16 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal MedianLGD { get; set; }
         public decimal ExpectedLoss { get; set; } // PD × LGD × EAD (expected loss across all simulations)
         
+        // LGD distribution percentiles (for understanding tail risk)
+        public decimal LGD_P10 { get; set; } // 10th percentile of LGD
+        public decimal LGD_P90 { get; set; } // 90th percentile of LGD
+        public decimal LGD_P95 { get; set; } // 95th percentile of LGD
+        public decimal LGD_P99 { get; set; } // 99th percentile of LGD (tail risk)
+        public decimal LGD_Min { get; set; } // Minimum LGD (often 0 when collateral covers)
+        public decimal LGD_Max { get; set; } // Maximum LGD (worst case scenario)
+        public int LGD_ZeroLossCount { get; set; } // Number of defaults with zero loss
+        public decimal LGD_ZeroLossPercent { get; set; } // % of defaults with zero loss
+        
         // ROI statistics (Return on Investment)
         public decimal NominalLoanAmount { get; set; } // Original portfolio loan amount
         public decimal InterestPaidBeforeSimulation { get; set; } // Interest paid from inception to simulation start

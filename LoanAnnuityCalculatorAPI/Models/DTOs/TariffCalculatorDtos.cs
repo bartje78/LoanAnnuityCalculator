@@ -15,6 +15,8 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal? ExtraSpread { get; set; }
         public string RedemptionScheme { get; set; } = "Annuity"; // "Annuity", "Linear", or "Bullet"
         public bool IsNewCompany { get; set; } = false; // Flag for companies with no financial history
+        public decimal? ManualRate { get; set; } // Manual override rate (as decimal, e.g., 0.055 for 5.5%)
+        public string? ImpactLevel { get; set; } // Social impact level: very-high, high, medium, low, very-low
     }
 
     public class TariffCalculationResponse
@@ -25,6 +27,7 @@ namespace LoanAnnuityCalculatorAPI.Models.DTOs
         public decimal LtvSpread { get; set; }
         public decimal RatingSpread { get; set; }
         public decimal ExtraSpread { get; set; }
+        public decimal ImpactDiscount { get; set; } // Impact discount applied (as decimal, e.g., 0.02 for 2%)
         public decimal MonthlyPayment { get; set; }
         public decimal TotalInterest { get; set; }
         public decimal TotalAmount { get; set; }

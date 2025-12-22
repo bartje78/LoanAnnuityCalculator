@@ -41,27 +41,48 @@ namespace LoanAnnuityCalculatorAPI.Services
             // Step 2: Generate ALL shocks upfront
             ShockGenerationService.SimulationShockSet shockSet;
             
-            if (sectors.Any() && request.SectorCorrelationMatrix != null && request.SectorVolatilities != null)
+            Console.WriteLine($"[MONTE CARLO SHOCK DEBUG] collateralTypes.Any() = {collateralTypes.Any()}");
+            Console.WriteLine($"[MONTE CARLO SHOCK DEBUG] sectors.Any() = {sectors.Any()}");
+            Console.WriteLine($"[MONTE CARLO SHOCK DEBUG] request.CollateralVolatility = {request.CollateralVolatility}");
+            
+            // Always generate shocks if we have collateral types, even without sector data
+            if (collateralTypes.Any() && 
+                (sectors.Any() || request.CollateralVolatility > 0))
             {
                 var collateralVolatilities = BuildCollateralVolatilities(collateralTypes, request.CollateralVolatility);
                 
-                shockSet = _shockGenerationService.GenerateShocks(
-                    request.NumberOfSimulations,
-                    request.SimulationYears,
-                    sectors,
-                    collateralTypes,
-                    request.SectorCorrelationMatrix,
-                    request.SectorVolatilities,
-                    request.SectorCollateralCorrelations ?? new Dictionary<(Sector, string), decimal>(),
-                    collateralVolatilities);
-                
-                Console.WriteLine($"[MONTE CARLO] Using sector-based shock generation");
+                // Use sector-based generation if we have sector data, otherwise independent shocks
+                if (sectors.Any() && request.SectorCorrelationMatrix != null && request.SectorVolatilities != null)
+                {
+                    shockSet = _shockGenerationService.GenerateShocks(
+                        request.NumberOfSimulations,
+                        request.SimulationYears,
+                        sectors,
+                        collateralTypes,
+                        request.SectorCorrelationMatrix,
+                        request.SectorVolatilities,
+                        request.SectorCollateralCorrelations ?? new Dictionary<(Sector, string), decimal>(),
+                        collateralVolatilities);
+                    
+                    Console.WriteLine($"[MONTE CARLO] Using sector-based shock generation");
+                }
+                else
+                {
+                    // Generate independent collateral shocks (no sector correlations)
+                    shockSet = _shockGenerationService.GenerateIndependentCollateralShocks(
+                        request.NumberOfSimulations,
+                        request.SimulationYears,
+                        collateralTypes,
+                        collateralVolatilities);
+                    
+                    Console.WriteLine($"[MONTE CARLO] Using independent collateral shock generation (no sector data)");
+                }
             }
             else
             {
-                // Create empty shock set for legacy mode (uses independent shocks)
+                // Create empty shock set for legacy mode (no volatility)
                 shockSet = new ShockGenerationService.SimulationShockSet();
-                Console.WriteLine($"[MONTE CARLO] Using independent shock generation (no sector data)");
+                Console.WriteLine($"[MONTE CARLO] No shocks generated (no collateral or volatility)");
             }
 
             // Step 3: Convert loan format
@@ -135,11 +156,22 @@ namespace LoanAnnuityCalculatorAPI.Services
                 
                 Console.WriteLine($"[PORTFOLIO MC] Generated shared sector-based shocks for portfolio");
             }
+            else if (allCollateralTypes.Any())
+            {
+                // Generate independent collateral shocks when no sector data available
+                shockSet = _shockGenerationService.GenerateIndependentCollateralShocks(
+                    numberOfSimulations,
+                    simulationYears,
+                    allCollateralTypes,
+                    aggregatedVolatilities);
+                
+                Console.WriteLine($"[PORTFOLIO MC] Generated independent collateral shocks (no sector data in portfolio)");
+            }
             else
             {
-                // Create empty shock set for independent shock generation
+                // Create empty shock set as fallback
                 shockSet = new ShockGenerationService.SimulationShockSet();
-                Console.WriteLine($"[PORTFOLIO MC] Using independent shock generation (no sector data in portfolio)");
+                Console.WriteLine($"[PORTFOLIO MC] No shocks generated (no collateral types)");
             }
 
             // Step 4: Run simulations for each debtor using SHARED shocks
@@ -310,25 +342,53 @@ namespace LoanAnnuityCalculatorAPI.Services
             MonteCarloSimulationResponse response,
             List<DebtorSimulationService.SimulationPath> allSimulations)
         {
+            var totalDefaults = allSimulations.Count(s => s.DefaultOccurred);
             var defaultedPaths = allSimulations.Where(s => s.DefaultOccurred && s.LossGivenDefault.HasValue).ToList();
+            
+            Console.WriteLine($"[EXPECTED LOSS DEBUG] Total simulations: {allSimulations.Count}, " +
+                $"Defaults: {totalDefaults}, Defaults with LGD: {defaultedPaths.Count}");
+            
+            if (totalDefaults > 0 && !defaultedPaths.Any())
+            {
+                Console.WriteLine($"[EXPECTED LOSS WARNING] {totalDefaults} defaults occurred but none have LGD values!");
+            }
             
             if (defaultedPaths.Any())
             {
-                response.Statistics.AverageLGD = defaultedPaths.Average(s => s.LossGivenDefault!.Value);
-                response.Statistics.MedianLGD = CalculatePercentile(
-                    defaultedPaths.Select(s => s.LossGivenDefault!.Value).OrderBy(lgd => lgd).ToList(), 50);
+                var lgdValues = defaultedPaths.Select(s => s.LossGivenDefault!.Value).OrderBy(lgd => lgd).ToList();
+                
+                // Calculate comprehensive LGD statistics
+                response.Statistics.AverageLGD = lgdValues.Average();
+                response.Statistics.MedianLGD = CalculatePercentile(lgdValues, 50);
+                
+                // Add percentiles for LGD distribution
+                response.Statistics.LGD_P10 = CalculatePercentile(lgdValues, 10);
+                response.Statistics.LGD_P90 = CalculatePercentile(lgdValues, 90);
+                response.Statistics.LGD_P95 = CalculatePercentile(lgdValues, 95);
+                response.Statistics.LGD_P99 = CalculatePercentile(lgdValues, 99);
+                response.Statistics.LGD_Min = lgdValues.First();
+                response.Statistics.LGD_Max = lgdValues.Last();
+                
+                // Count how many have zero loss (fully covered by collateral)
+                response.Statistics.LGD_ZeroLossCount = lgdValues.Count(lgd => lgd == 0);
+                response.Statistics.LGD_ZeroLossPercent = (decimal)response.Statistics.LGD_ZeroLossCount / lgdValues.Count * 100;
                 
                 decimal probabilityOfDefault = response.Statistics.ProbabilityOfDefault / 100m;
                 response.Statistics.ExpectedLoss = probabilityOfDefault * response.Statistics.AverageLGD;
                 
-                Console.WriteLine($"[EXPECTED LOSS] PD: {response.Statistics.ProbabilityOfDefault:F2}%, " +
-                    $"Avg LGD: €{response.Statistics.AverageLGD:N2}, EL: €{response.Statistics.ExpectedLoss:N2}");
+                Console.WriteLine($"[EXPECTED LOSS] PD: {response.Statistics.ProbabilityOfDefault:F2}%");
+                Console.WriteLine($"[LGD DISTRIBUTION] Mean: €{response.Statistics.AverageLGD:N0}, Median: €{response.Statistics.MedianLGD:N0}");
+                Console.WriteLine($"[LGD PERCENTILES] P10: €{response.Statistics.LGD_P10:N0}, P90: €{response.Statistics.LGD_P90:N0}, P95: €{response.Statistics.LGD_P95:N0}, P99: €{response.Statistics.LGD_P99:N0}");
+                Console.WriteLine($"[LGD RANGE] Min: €{response.Statistics.LGD_Min:N0}, Max: €{response.Statistics.LGD_Max:N0}");
+                Console.WriteLine($"[LGD COVERAGE] {response.Statistics.LGD_ZeroLossCount}/{lgdValues.Count} defaults ({response.Statistics.LGD_ZeroLossPercent:F1}%) have zero loss (collateral fully covers)");
+                Console.WriteLine($"[EXPECTED LOSS] EL = PD × Mean(LGD) = {response.Statistics.ProbabilityOfDefault:F2}% × €{response.Statistics.AverageLGD:N0} = €{response.Statistics.ExpectedLoss:N0}");
             }
             else
             {
                 response.Statistics.AverageLGD = 0;
                 response.Statistics.MedianLGD = 0;
                 response.Statistics.ExpectedLoss = 0;
+                Console.WriteLine($"[EXPECTED LOSS] No defaults with LGD, setting EL to 0");
             }
         }
 
@@ -448,8 +508,50 @@ namespace LoanAnnuityCalculatorAPI.Services
 
                 // Calculate expected loss for this debtor
                 var defaultedPaths = debtorSims.Where(s => s.DefaultOccurred && s.LossGivenDefault.HasValue).ToList();
-                decimal averageLGD = defaultedPaths.Any() ? defaultedPaths.Average(s => s.LossGivenDefault!.Value) : 0;
+                
+                Console.WriteLine($"[PORTFOLIO DEBUG] {debtorName}: Total defaults: {defaultCount}, " +
+                    $"Defaults with LGD: {defaultedPaths.Count}");
+                
+                if (defaultCount > 0 && !defaultedPaths.Any())
+                {
+                    Console.WriteLine($"[PORTFOLIO WARNING] {debtorName} has {defaultCount} defaults but none have LGD values!");
+                }
+                
+                // Calculate comprehensive LGD statistics
+                decimal averageLGD = 0;
+                decimal medianLGD = 0;
+                decimal lgd_P10 = 0, lgd_P90 = 0, lgd_P95 = 0, lgd_P99 = 0;
+                decimal lgd_Min = 0, lgd_Max = 0;
+                int lgd_ZeroCount = 0;
+                decimal lgd_ZeroPercent = 0;
+                
+                if (defaultedPaths.Any())
+                {
+                    var lgdValues = defaultedPaths.Select(s => s.LossGivenDefault!.Value).OrderBy(lgd => lgd).ToList();
+                    
+                    averageLGD = lgdValues.Average();
+                    medianLGD = CalculatePercentile(lgdValues, 50);
+                    lgd_P10 = CalculatePercentile(lgdValues, 10);
+                    lgd_P90 = CalculatePercentile(lgdValues, 90);
+                    lgd_P95 = CalculatePercentile(lgdValues, 95);
+                    lgd_P99 = CalculatePercentile(lgdValues, 99);
+                    lgd_Min = lgdValues.First();
+                    lgd_Max = lgdValues.Last();
+                    lgd_ZeroCount = lgdValues.Count(lgd => lgd == 0);
+                    lgd_ZeroPercent = (decimal)lgd_ZeroCount / lgdValues.Count * 100;
+                    
+                    // Enhanced console logging for portfolio
+                    Console.WriteLine($"[PORTFOLIO LGD] {debtorName}:");
+                    Console.WriteLine($"  PD: {pd:F2}%");
+                    Console.WriteLine($"  LGD Distribution - Mean: €{averageLGD:N0}, Median: €{medianLGD:N0}");
+                    Console.WriteLine($"  Percentiles - P10: €{lgd_P10:N0}, P90: €{lgd_P90:N0}, P95: €{lgd_P95:N0}, P99: €{lgd_P99:N0}");
+                    Console.WriteLine($"  Range - Min: €{lgd_Min:N0}, Max: €{lgd_Max:N0}");
+                    Console.WriteLine($"  Coverage - {lgd_ZeroCount}/{lgdValues.Count} defaults ({lgd_ZeroPercent:F1}%) have zero loss");
+                }
+                
                 decimal expectedLoss = (pd / 100m) * averageLGD;
+                
+                Console.WriteLine($"  Expected Loss: PD ({pd:F2}%) × Mean LGD (€{averageLGD:N0}) = €{expectedLoss:N0}");
 
                 // Determine primary property type
                 string primaryPropertyType = DeterminePrimaryPropertyType(loans);
@@ -463,7 +565,17 @@ namespace LoanAnnuityCalculatorAPI.Services
                     ExpectedLoss = expectedLoss,
                     ExpectedLossPercentage = totalLoanAmount > 0 ? (expectedLoss / totalLoanAmount) * 100 : 0,
                     SectorWeights = request.SectorWeights ?? new Dictionary<Sector, decimal>(),
-                    PrimaryPropertyType = primaryPropertyType
+                    PrimaryPropertyType = primaryPropertyType,
+                    AverageLGD = averageLGD,
+                    MedianLGD = medianLGD,
+                    LGD_P10 = lgd_P10,
+                    LGD_P90 = lgd_P90,
+                    LGD_P95 = lgd_P95,
+                    LGD_P99 = lgd_P99,
+                    LGD_Min = lgd_Min,
+                    LGD_Max = lgd_Max,
+                    LGD_ZeroLossCount = lgd_ZeroCount,
+                    LGD_ZeroLossPercent = lgd_ZeroPercent
                 };
 
                 response.DebtorResults.Add(summary);
@@ -500,6 +612,9 @@ namespace LoanAnnuityCalculatorAPI.Services
 
             // Calculate yearly statistics across portfolio
             CalculatePortfolioYearlyStatistics(response, allDebtorResults);
+            
+            // Generate histogram bins
+            GenerateHistogramBins(response, allDebtorResults);
 
             return response;
         }
@@ -559,6 +674,154 @@ namespace LoanAnnuityCalculatorAPI.Services
                 
                 response.YearlyResults.Add(yearStat);
             }
+        }
+        
+        private void GenerateHistogramBins(
+            PortfolioMonteCarloResponse response,
+            Dictionary<int, List<DebtorSimulationService.SimulationPath>> allDebtorResults)
+        {
+            // Collect raw data for each simulation
+            var defaultCounts = new List<int>();
+            var totalLosses = new List<decimal>();
+            
+            for (int sim = 0; sim < response.TotalSimulations; sim++)
+            {
+                int defaultsInScenario = 0;
+                decimal totalLossInScenario = 0;
+                
+                foreach (var debtorId in response.DebtorIds)
+                {
+                    var debtorPath = allDebtorResults[debtorId][sim];
+                    
+                    if (debtorPath.DefaultOccurred)
+                    {
+                        defaultsInScenario++;
+                        if (debtorPath.LossGivenDefault.HasValue)
+                        {
+                            totalLossInScenario += debtorPath.LossGivenDefault.Value;
+                        }
+                    }
+                }
+                
+                defaultCounts.Add(defaultsInScenario);
+                totalLosses.Add(totalLossInScenario);
+            }
+            
+            // Generate default count histogram bins
+            response.PortfolioStats.Histograms.DefaultCountBins = GenerateDefaultCountBins(defaultCounts);
+            
+            // Generate total loss histogram bins
+            response.PortfolioStats.Histograms.TotalLossBins = GenerateTotalLossBins(totalLosses);
+            
+            Console.WriteLine($"[PORTFOLIO HISTOGRAM] Generated {response.PortfolioStats.Histograms.DefaultCountBins.Count} default bins, " +
+                $"{response.PortfolioStats.Histograms.TotalLossBins.Count} loss bins");
+        }
+        
+        private List<HistogramBin> GenerateDefaultCountBins(List<int> values)
+        {
+            if (!values.Any()) return new List<HistogramBin>();
+            
+            var minValue = values.Min();
+            var maxValue = values.Max();
+            
+            // For discrete values like default counts, create one bin per value
+            var bins = new Dictionary<int, int>();
+            
+            for (int i = minValue; i <= maxValue; i++)
+            {
+                bins[i] = 0;
+            }
+            
+            foreach (var value in values)
+            {
+                bins[value]++;
+            }
+            
+            return bins.Select(kvp => new HistogramBin
+            {
+                Label = kvp.Key.ToString(),
+                Count = kvp.Value
+            }).ToList();
+        }
+        
+        private List<HistogramBin> GenerateTotalLossBins(List<decimal> values)
+        {
+            if (!values.Any()) return new List<HistogramBin>();
+            
+            var minValue = values.Min();
+            var maxValue = values.Max();
+            
+            Console.WriteLine($"[LOSS BINS DEBUG] Total scenarios: {values.Count}");
+            Console.WriteLine($"[LOSS BINS DEBUG] Min loss: €{minValue:N2}, Max loss: €{maxValue:N2}");
+            Console.WriteLine($"[LOSS BINS DEBUG] Non-zero losses: {values.Count(v => v > 0)}");
+            
+            // Handle edge case where all values are the same
+            if (minValue == maxValue)
+            {
+                Console.WriteLine($"[LOSS BINS DEBUG] All values are the same: €{minValue:N2}");
+                return new List<HistogramBin>
+                {
+                    new HistogramBin
+                    {
+                        Label = $"€{Math.Round(minValue / 1000)}k",
+                        Count = values.Count
+                    }
+                };
+            }
+            
+            // Create 20 bins with equal width from min to max
+            const int numBins = 20;
+            var binWidth = (maxValue - minValue) / numBins;
+            var bins = new int[numBins];
+            
+            Console.WriteLine($"[LOSS BINS DEBUG] Creating {numBins} equal-width bins from €{minValue:N2} to €{maxValue:N2}");
+            Console.WriteLine($"[LOSS BINS DEBUG] Bin width: €{binWidth:N2}");
+            
+            // Count values in each bin
+            foreach (var value in values)
+            {
+                int binIndex = (int)Math.Floor((value - minValue) / binWidth);
+                if (binIndex >= numBins) binIndex = numBins - 1;
+                if (binIndex < 0) binIndex = 0;
+                bins[binIndex]++;
+            }
+            
+            // Create histogram bins with labels showing actual loss ranges
+            var result = new List<HistogramBin>();
+            for (int i = 0; i < numBins; i++)
+            {
+                var binStart = minValue + i * binWidth;
+                var binEnd = binStart + binWidth;
+                
+                // Format label based on values
+                string label;
+                if (binEnd - binStart < 1000)
+                {
+                    // For small ranges, show decimal places
+                    label = $"€{Math.Round(binStart / 1000, 1)}k-€{Math.Round(binEnd / 1000, 1)}k";
+                }
+                else
+                {
+                    label = $"€{Math.Round(binStart / 1000)}k-€{Math.Round(binEnd / 1000)}k";
+                }
+                
+                result.Add(new HistogramBin
+                {
+                    Label = label,
+                    Count = bins[i]
+                });
+                
+                if (bins[i] > 0)
+                {
+                    Console.WriteLine($"[LOSS BINS DEBUG] Bin {i}: {label} has {bins[i]} scenarios");
+                }
+            }
+            
+            Console.WriteLine($"[LOSS BINS DEBUG] Non-empty bins: {result.Count(b => b.Count > 0)}");
+            Console.WriteLine($"[LOSS BINS DEBUG] First bin: {result[0].Label} = {result[0].Count} scenarios");
+            Console.WriteLine($"[LOSS BINS DEBUG] Last bin: {result[numBins-1].Label} = {result[numBins-1].Count} scenarios");
+            
+            return result;
         }
 
         #endregion
@@ -621,13 +884,16 @@ namespace LoanAnnuityCalculatorAPI.Services
         }
 
         private Dictionary<string, decimal> BuildCollateralVolatilities(
-            List<string> collateralTypes,
+            List<string?> collateralTypes,
             decimal defaultVolatility)
         {
             var volatilities = new Dictionary<string, decimal>();
             foreach (var propertyType in collateralTypes)
             {
-                volatilities[propertyType] = defaultVolatility;
+                if (propertyType != null)
+                {
+                    volatilities[propertyType] = defaultVolatility;
+                }
             }
             return volatilities;
         }

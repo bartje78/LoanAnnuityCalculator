@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using LoanAnnuityCalculatorAPI.Models;
 using LoanAnnuityCalculatorAPI.Services;
 
@@ -8,23 +9,27 @@ namespace LoanAnnuityCalculatorAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting("api")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ILogger<AuthController> _logger;
+        private readonly IAuditService _auditService;
 
         public AuthController(
             IAuthService authService,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            IAuditService auditService)
         {
             _authService = authService;
             _userManager = userManager;
             _roleManager = roleManager;
             _logger = logger;
+            _auditService = auditService;
         }
 
         /// <summary>
@@ -33,6 +38,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         /// </summary>
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("auth")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             if (!ModelState.IsValid)
@@ -46,6 +52,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 if (user == null)
                 {
                     _logger.LogWarning("Failed login attempt for user: {Username}", request.Username);
+                    await _auditService.LogLoginAttemptAsync(request.Username, false, "Invalid credentials");
                     return Unauthorized(new { message = "Invalid username or password" });
                 }
 
@@ -53,6 +60,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 var roles = await _userManager.GetRolesAsync(user);
 
                 _logger.LogInformation("User {Username} logged in successfully", request.Username);
+                await _auditService.LogLoginAttemptAsync(request.Username, true);
 
                 return Ok(new LoginResponse
                 {
@@ -68,6 +76,7 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during login for user: {Username}", request.Username);
+                await _auditService.LogLoginAttemptAsync(request.Username, false, ex.Message);
                 return StatusCode(500, new { message = "An error occurred during login" });
             }
         }
@@ -184,13 +193,22 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         }
 
         /// <summary>
-        /// Initialize roles and default admin user (development only)
+        /// Initialize roles and default admin user (DEVELOPMENT ONLY)
+        /// This endpoint is automatically disabled in production
         /// POST: api/Auth/initialize
         /// </summary>
         [HttpPost("initialize")]
-        [AllowAnonymous] // Remove this in production!
+        [AllowAnonymous]
         public async Task<IActionResult> InitializeRolesAndAdmin()
         {
+            // SECURITY: Only allow in Development environment
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            if (environment != "Development")
+            {
+                _logger.LogWarning("Attempt to access initialization endpoint in {Environment} environment", environment);
+                return NotFound(); // Return 404 in production to hide the endpoint
+            }
+
             try
             {
                 // Create roles if they don't exist
