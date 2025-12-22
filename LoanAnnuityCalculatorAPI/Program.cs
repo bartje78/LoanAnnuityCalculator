@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using System.Text;
 using LoanAnnuityCalculatorAPI.Data;
 using LoanAnnuityCalculatorAPI.Models;
@@ -52,26 +54,40 @@ builder.Services.AddScoped<SectorCorrelationSeedService>(); // Register the sect
 builder.Services.AddScoped<RevenueSectorMappingService>(); // Register the revenue sector mapping service
 builder.Services.AddScoped<ITenantService, TenantService>(); // Register the tenant service
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>(); // Register the subscription service
+builder.Services.AddScoped<LtvCalculationService>(); // Register the LTV calculation service
+builder.Services.AddScoped<IAuditService, AuditService>(); // Register the audit service
 
 // Register HttpContextAccessor for tenant context
 builder.Services.AddHttpContextAccessor();
 
 // Register LoanDbContext with the DI container
-// Build an absolute path to the database file so migrations and runtime use the same file
-var dbPath = Path.Combine(builder.Environment.ContentRootPath, "loans.db");
-var connectionString = $"Data Source={dbPath}";
-builder.Services.AddDbContext<LoanDbContext>(options =>
-    options.UseSqlite(connectionString)); // Use SQLite or your database provider
+// Use SQL Server in production, SQLite in development
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrEmpty(connectionString))
+{
+    // Fallback to SQLite for development
+    var dbPath = Path.Combine(builder.Environment.ContentRootPath, "loans.db");
+    connectionString = $"Data Source={dbPath}";
+    builder.Services.AddDbContext<LoanDbContext>(options =>
+        options.UseSqlite(connectionString));
+}
+else
+{
+    // Use SQL Server for production
+    builder.Services.AddDbContext<LoanDbContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 
 // Configure ASP.NET Core Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    // Password settings
+    // Password settings - strengthened for production
     options.Password.RequireDigit = true;
     options.Password.RequireLowercase = true;
     options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequiredLength = 12;
+    options.Password.RequiredUniqueChars = 4;
 
     // Lockout settings
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
@@ -116,14 +132,36 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("TenantAdminOnly", policy => policy.RequireRole(TenantRoles.TenantAdmin));
 });
 
-// Add CORS policy
+// Add CORS policy - configured from appsettings
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:4200" };
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigins", policy =>
     {
-        policy.WithOrigins("http://localhost:4200", "http://localhost:4201") // Allow requests from both frontend ports
-              .AllowAnyHeader() // Allow all headers
-              .AllowAnyMethod(); // Allow all HTTP methods (GET, POST, etc.)
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .WithExposedHeaders("Content-Disposition"); // For file downloads
+    });
+});
+
+// Add rate limiting
+builder.Services.AddRateLimiter(options =>
+{
+    // General API rate limit
+    options.AddFixedWindowLimiter("api", options =>
+    {
+        options.Window = TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("RateLimiting:Window", 60));
+        options.PermitLimit = builder.Configuration.GetValue<int>("RateLimiting:PermitLimit", 100);
+        options.QueueLimit = 0;
+    });
+    
+    // Stricter rate limit for authentication endpoints
+    options.AddFixedWindowLimiter("auth", options =>
+    {
+        options.Window = TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("RateLimiting:AuthWindow", 60));
+        options.PermitLimit = builder.Configuration.GetValue<int>("RateLimiting:AuthPermitLimit", 5);
+        options.QueueLimit = 0;
     });
 });
 
@@ -131,6 +169,15 @@ var app = builder.Build();
 
 // Use CORS
 app.UseCors("AllowSpecificOrigins");
+
+// Enable HTTPS redirection (critical for production)
+app.UseHttpsRedirection();
+
+// Add security headers
+app.UseSecurityHeaders();
+
+// Use rate limiting
+app.UseRateLimiter();
 
 // Use Authentication & Authorization (order matters!)
 app.UseAuthentication();
@@ -140,7 +187,6 @@ app.UseTenantMiddleware();
 
 app.UseAuthorization();
 
-//app.UseHttpsRedirection();
 app.MapControllers();
 
 /// Seed data
