@@ -1031,8 +1031,7 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         name: "FK_BalanceSheetLineItems_Collaterals_CollateralId",
                         column: x => x.CollateralId,
                         principalTable: "Collaterals",
-                        principalColumn: "CollateralId",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "CollateralId");
                     table.ForeignKey(
                         name: "FK_BalanceSheetLineItems_DebtorBalanceSheets_BalanceSheetId",
                         column: x => x.BalanceSheetId,
@@ -1043,8 +1042,7 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                         name: "FK_BalanceSheetLineItems_Loans_LoanId",
                         column: x => x.LoanId,
                         principalTable: "Loans",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(

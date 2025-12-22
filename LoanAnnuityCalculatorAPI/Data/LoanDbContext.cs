@@ -102,14 +102,14 @@ namespace LoanAnnuityCalculatorAPI.Data
                 .HasOne(li => li.Loan)
                 .WithMany()
                 .HasForeignKey(li => li.LoanId)
-                .OnDelete(DeleteBehavior.SetNull); // Set LoanId to null if loan is deleted
+                .OnDelete(DeleteBehavior.NoAction); // No action to avoid cascade path conflict
 
             // Define optional relationship between BalanceSheetLineItem and Collateral
             modelBuilder.Entity<BalanceSheetLineItem>()
                 .HasOne(li => li.Collateral)
                 .WithMany()
                 .HasForeignKey(li => li.CollateralId)
-                .OnDelete(DeleteBehavior.SetNull); // Set CollateralId to null if collateral is deleted
+                .OnDelete(DeleteBehavior.NoAction); // No action to avoid cascade path conflict
 
             // Define the relationship between DebtorPL and DebtorDetails
             modelBuilder.Entity<DebtorPL>()

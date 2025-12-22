@@ -2494,12 +2494,12 @@ namespace LoanAnnuityCalculatorAPI.Migrations
                     b.HasOne("LoanAnnuityCalculatorAPI.Models.Collateral", "Collateral")
                         .WithMany()
                         .HasForeignKey("CollateralId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("LoanAnnuityCalculatorAPI.Models.Loan.Loan", "Loan")
                         .WithMany()
                         .HasForeignKey("LoanId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Collateral");
 
