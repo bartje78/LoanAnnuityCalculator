@@ -40,6 +40,9 @@ bld/
 *.db-shm
 *.db-wal
 
+# Production configuration with secrets
+appsettings.Production.json
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
@@ -98,3 +101,17 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Azure publish profiles (sensitive)
+*publish-profile.xml
+
+# Local database
+*.db
+*.db-shm
+*.db-wal
+
+# Azure settings with secrets
+appsettings-azure.json
+
+# Deployment logs
+backend-logs.zip

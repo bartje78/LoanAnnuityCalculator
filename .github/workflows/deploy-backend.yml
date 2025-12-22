@@ -1,0 +1,101 @@
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'LoanAnnuityCalculatorAPI/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: loancalculator-api-loanportal
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./LoanAnnuityCalculatorAPI
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ./LoanAnnuityCalculatorAPI
+
+    - name: Publish
+      run: dotnet publish -c Release -o ./publish
+      working-directory: ./LoanAnnuityCalculatorAPI
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+        package: ./LoanAnnuityCalculatorAPI/publish
+
+    - name: Configure App Settings
+      uses: azure/appservice-settings@v1
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-settings-json: |
+          [
+            {
+              "name": "ASPNETCORE_ENVIRONMENT",
+              "value": "Production"
+            },
+            {
+              "name": "ConnectionStrings__DefaultConnection",
+              "value": "${{ secrets.AZURE_SQL_CONNECTION_STRING }}"
+            },
+            {
+              "name": "JwtSettings__SecretKey",
+              "value": "${{ secrets.JWT_SECRET_KEY }}"
+            },
+            {
+              "name": "JwtSettings__Issuer",
+              "value": "https://loancalculator-api-loanportal.azurewebsites.net"
+            },
+            {
+              "name": "JwtSettings__Audience",
+              "value": "https://loancalculator-frontend-loanportal.azurewebsites.net"
+            },
+            {
+              "name": "JwtSettings__ExpirationMinutes",
+              "value": "30"
+            },
+            {
+              "name": "RateLimiting__PermitLimit",
+              "value": "100"
+            },
+            {
+              "name": "RateLimiting__Window",
+              "value": "60"
+            },
+            {
+              "name": "RateLimiting__AuthPermitLimit",
+              "value": "5"
+            },
+            {
+              "name": "AllowedOrigins__0",
+              "value": "https://loancalculator-frontend-loanportal.azurewebsites.net"
+            }
+          ]
+        
+    - name: Restart Web App
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az webapp restart --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group LoanCalculatorRG
