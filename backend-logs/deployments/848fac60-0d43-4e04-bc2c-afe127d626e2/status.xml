@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>848fac60-0d43-4e04-bc2c-afe127d626e2</id>
+  <author>N/A</author>
+  <deployer>GITHUB_ZIP_DEPLOY</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>{"type":"deployment","sha":"7a20d69e207c9664e99709e401ed765afc7089de","repoName":"bartje78/LoanAnnuityCalculator","actor":"bartje78","slotName":"production","commitMessage":"Fix backend deployment: move app settings to env block"}</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2025-12-22T19:59:06.2691297Z</lastSuccessEndTime>
+  <receivedTime>2025-12-22T19:58:52.8054405Z</receivedTime>
+  <startTime>2025-12-22T19:58:54.4900853Z</startTime>
+  <endTime>2025-12-22T19:59:06.2691297Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary />
+</deployment>
