@@ -201,12 +201,12 @@ namespace LoanAnnuityCalculatorAPI.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> InitializeRolesAndAdmin()
         {
-            // SECURITY: Only allow in Development environment
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            if (environment != "Development")
+            // SECURITY: Allow initialization only if no admin user exists (one-time setup)
+            var existingAdmin = await _userManager.FindByNameAsync("admin");
+            if (existingAdmin != null)
             {
-                _logger.LogWarning("Attempt to access initialization endpoint in {Environment} environment", environment);
-                return NotFound(); // Return 404 in production to hide the endpoint
+                _logger.LogWarning("Initialization endpoint called but admin already exists");
+                return BadRequest(new { message = "System already initialized" });
             }
 
             try
