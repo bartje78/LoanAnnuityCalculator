@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>09d10569-01c2-477f-b3ca-f593dd1ed2c8</id>
+  <author>N/A</author>
+  <deployer>GITHUB_ZIP_DEPLOY</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>{"type":"deployment","sha":"d4053ba9269c5bd5bc16699e9b328e10687dd85c","repoName":"bartje78/LoanAnnuityCalculator","actor":"bartje78","slotName":"production","commitMessage":"Fix cascade delete conflicts for SQL Server compatibility"}</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2025-12-22T20:14:37.2980383Z</lastSuccessEndTime>
+  <receivedTime>2025-12-22T20:14:25.6069678Z</receivedTime>
+  <startTime>2025-12-22T20:14:27.4731595Z</startTime>
+  <endTime>2025-12-22T20:14:37.2980383Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary />
+</deployment>

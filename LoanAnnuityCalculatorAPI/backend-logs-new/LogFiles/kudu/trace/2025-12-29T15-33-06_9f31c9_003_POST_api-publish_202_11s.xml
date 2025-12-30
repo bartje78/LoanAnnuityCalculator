@@ -1,0 +1,16 @@
+<step title="Incoming Request" date="2025-12-29T15:33:06.045" instance="9f31c9" url="/api/publish?type=zip&amp;async=True" method="POST" type="request" pid="833,1,5" Accept="*/*" Host="loancalculator-api-loanportal.scm.azurewebsites.net" User-Agent="AZURECLI/2.81.0 (HOMEBREW)" Accept-Encoding="gzip, deflate" Authorization="Bas..." Cache-Control="no-cache" Content-Type="application/octet-stream" Cookie="ARRAffinity=9f31c9c5bee5168e5eb7bf80d32ece8094d4003d3670d16b35539c64104ecd98; ARRAffinitySameSite=9f31c9c5bee5168e5eb7bf80d32ece8094d4003d3670d16b35539c64104ecd98" Content-Length="25689462" x-ms-client-request-id="94f8f5f2-e4cb-11f0-a5df-3605ce118f3e" x-ms-artifact-checksum="f9843d5c88a5418f75859fc89e3a8f48f9b5778250b5abeddb5848f0930a6e17" X-ARR-LOG-ID="94f8f5f2-e4cb-11f0-a5df-3605ce118f3e" CLIENT-IP="195.241.23.107:57352" X-SITE-DEPLOYMENT-ID="loancalculator-api-loanportal" WAS-DEFAULT-HOSTNAME="loancalculator-api-loanportal.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/publish?type=zip&amp;async=True" X-Client-IP="195.241.23.107" X-Client-Port="57352" >
+  <step title="OneDeploy" date="2025-12-29T15:33:06.195" >
+    <step title="None repository commit" date="2025-12-29T15:33:06.307" >
+      <step title="Commit id: d780f371-9e07-46a4-92d2-2c32c5d214ff" date="2025-12-29T15:33:06.315" Message="N/A" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 6ms -->
+    </step><!-- duration: 21ms -->
+    <step title="Starting PushDeployAsync" date="2025-12-29T15:33:06.334" /><!-- duration: 8ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/a7c7d6bc-133e-450e-b1f7-690f6f747719.zip" date="2025-12-29T15:33:06.366" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/a7c7d6bc-133e-450e-b1f7-690f6f747719.zip" date="2025-12-29T15:33:06.373" /><!-- duration: 6ms -->
+    </step><!-- duration: 9883ms -->
+    <step title="Start deployment in the background" date="2025-12-29T15:33:16.280" >
+      <step title="Acquiring Deployment Lock" date="2025-12-29T15:33:16.328" /><!-- duration: 7ms -->
+      <step title="Acquired Deployment Lock" date="2025-12-29T15:33:16.445" /><!-- duration: 8ms -->
+    </step><!-- duration: 296ms -->
+  </step><!-- duration: 10390ms -->
+  <step title="Outgoing response" date="2025-12-29T15:33:16.596" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 11ms -->
+</step><!-- duration: 10568ms -->

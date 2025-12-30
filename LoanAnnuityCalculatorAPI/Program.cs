@@ -193,10 +193,64 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<LoanDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     // Apply migrations to ensure the database schema is up-to-date
     Console.WriteLine("Applying migrations...");
-    dbContext.Database.Migrate();
+    // dbContext.Database.Migrate(); // Temporarily disabled
+
+    // Seed roles
+    Console.WriteLine("Seeding roles...");
+    string[] roles = { "Admin", "RiskManager", "Viewer", "SystemAdmin", "TenantAdmin" };
+    foreach (var role in roles)
+    {
+        if (!roleManager.RoleExistsAsync(role).Result)
+        {
+            roleManager.CreateAsync(new IdentityRole(role)).Wait();
+            Console.WriteLine($"Created role: {role}");
+        }
+    }
+
+    // Seed admin user
+    var adminEmail = "admin@loanannuity.local";
+    var adminUser = userManager.FindByEmailAsync(adminEmail).Result;
+    if (adminUser == null)
+    {
+        Console.WriteLine("Creating default admin user...");
+        adminUser = new ApplicationUser
+        {
+            UserName = "admin",
+            Email = adminEmail,
+            FirstName = "System",
+            LastName = "Administrator",
+            EmailConfirmed = true,
+            IsActive = true,
+            IsSystemAdmin = true
+        };
+
+        var result = userManager.CreateAsync(adminUser, "Admin123!@#$").Result;
+        if (result.Succeeded)
+        {
+            userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+            userManager.AddToRoleAsync(adminUser, "SystemAdmin").Wait();
+            Console.WriteLine("Default admin user created successfully.");
+            Console.WriteLine("Username: admin");
+            Console.WriteLine("Password: Admin123!@#$");
+        }
+        else
+        {
+            Console.WriteLine("Failed to create admin user:");
+            foreach (var error in result.Errors)
+            {
+                Console.WriteLine($"- {error.Description}");
+            }
+        }
+    }
+    else
+    {
+        Console.WriteLine("Admin user already exists.");
+    }
 
     // Seed DebtorDetails
     if (!dbContext.DebtorDetails.Any())

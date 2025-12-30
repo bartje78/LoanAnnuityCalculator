@@ -1,0 +1,17 @@
+<step title="Incoming Request" date="2025-12-29T15:04:59.518" instance="9f31c9" url="/api/publish?type=zip&amp;async=True" method="POST" type="request" pid="841,1,45" Accept="*/*" Host="loancalculator-api-loanportal.scm.azurewebsites.net" User-Agent="AZURECLI/2.81.0 (HOMEBREW)" Accept-Encoding="gzip, deflate" Authorization="Bas..." Cache-Control="no-cache" Content-Type="application/octet-stream" Cookie="ARRAffinity=9f31c9c5bee5168e5eb7bf80d32ece8094d4003d3670d16b35539c64104ecd98; ARRAffinitySameSite=9f31c9c5bee5168e5eb7bf80d32ece8094d4003d3670d16b35539c64104ecd98" Content-Length="25670015" x-ms-client-request-id="b2ab37e4-e4c7-11f0-8dca-3605ce118f3e" x-ms-artifact-checksum="47a60a64e978806321b5c6f255eb92da0de55173017d65e9583bd7a4ed9f3346" X-ARR-LOG-ID="b2ab37e4-e4c7-11f0-8dca-3605ce118f3e" CLIENT-IP="195.241.23.107:50711" X-SITE-DEPLOYMENT-ID="loancalculator-api-loanportal" WAS-DEFAULT-HOSTNAME="loancalculator-api-loanportal.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/publish?type=zip&amp;async=True" X-Client-IP="195.241.23.107" X-Client-Port="50711" >
+  <step title="Cleanup Xml Logs" date="2025-12-29T15:04:59.525" /><!-- duration: 20ms -->
+  <step title="OneDeploy" date="2025-12-29T15:04:59.678" >
+    <step title="None repository commit" date="2025-12-29T15:04:59.698" >
+      <step title="Commit id: 04cd866f-68b1-4a16-8400-b49dec05e07c" date="2025-12-29T15:04:59.705" Message="N/A" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 9ms -->
+    </step><!-- duration: 22ms -->
+    <step title="Starting PushDeployAsync" date="2025-12-29T15:04:59.727" /><!-- duration: 7ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/e56360e8-9e21-4777-be86-8b28655afc23.zip" date="2025-12-29T15:04:59.813" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/e56360e8-9e21-4777-be86-8b28655afc23.zip" date="2025-12-29T15:04:59.842" /><!-- duration: 39ms -->
+    </step><!-- duration: 8583ms -->
+    <step title="Start deployment in the background" date="2025-12-29T15:05:08.458" >
+      <step title="Acquiring Deployment Lock" date="2025-12-29T15:05:08.540" /><!-- duration: 17ms -->
+      <step title="Acquired Deployment Lock" date="2025-12-29T15:05:08.602" /><!-- duration: 7ms -->
+    </step><!-- duration: 326ms -->
+  </step><!-- duration: 9118ms -->
+  <step title="Outgoing response" date="2025-12-29T15:05:08.808" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 11ms -->
+</step><!-- duration: 9306ms -->
