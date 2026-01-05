@@ -119,10 +119,10 @@ namespace LoanAnnuityCalculatorAPI.Services
                     decimal interestComponent = CalculateInterestComponent(remainingLoan, annualInterestRate);
                     decimal capitalComponent = monthlyAnnuity - interestComponent;
 
-                    results.Add((i, interestComponent, capitalComponent, remainingLoan));
-
                     remainingLoan -= capitalComponent;
                     if (remainingLoan < 0) remainingLoan = 0;
+
+                    results.Add((i, interestComponent, capitalComponent, remainingLoan));
                 }
             }
 
@@ -187,10 +187,11 @@ namespace LoanAnnuityCalculatorAPI.Services
                 for (int i = interestOnlyMonths + 1; i <= tenorMonths; i++)
                 {
                     decimal interestComponent = CalculateInterestComponent(remainingLoan, annualInterestRate);
-                    results.Add((i, interestComponent, linearCapitalPayment, remainingLoan));
-
+                    
                     remainingLoan -= linearCapitalPayment;
                     if (remainingLoan < 0) remainingLoan = 0;
+                    
+                    results.Add((i, interestComponent, linearCapitalPayment, remainingLoan));
                 }
             }
 
@@ -229,8 +230,8 @@ namespace LoanAnnuityCalculatorAPI.Services
                 results.Add((i, interestComponent, 0, loanAmount));
             }
 
-            // Last month: interest + full principal repayment
-            results.Add((tenorMonths, interestComponent, loanAmount, loanAmount));
+            // Last month: interest + full principal repayment (remaining balance = 0)
+            results.Add((tenorMonths, interestComponent, loanAmount, 0));
 
             return results;
         }

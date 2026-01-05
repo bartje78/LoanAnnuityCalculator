@@ -246,14 +246,21 @@ namespace LoanAnnuityCalculatorAPI.Services
             if (settings == null || !settings.LtvTiers.Any())
                 return 0;
 
+            // For unsecured loans (LTV >= 999), always use the tier with highest spread
+            if (ltv >= 999)
+            {
+                var highestSpreadTier = settings.LtvTiers.OrderByDescending(t => t.Spread).FirstOrDefault();
+                return highestSpreadTier != null ? highestSpreadTier.Spread / 100m : 0;
+            }
+
             // Find the appropriate LTV tier
             // Tiers are sorted by MaxLtv, find the first tier where LTV is less than or equal to MaxLtv
             var orderedTiers = settings.LtvTiers.OrderBy(t => t.MaxLtv).ToList();
             var tier = orderedTiers.FirstOrDefault(t => ltv <= t.MaxLtv);
 
-            // If no tier matches (LTV > highest MaxLtv), use the highest tier (maximum spread)
+            // If no tier matches (LTV > highest MaxLtv), use the tier with highest spread
             if (tier == null)
-                tier = orderedTiers.LastOrDefault();
+                tier = settings.LtvTiers.OrderByDescending(t => t.Spread).FirstOrDefault();
 
             // Convert from basis points to percentage
             return tier != null ? tier.Spread / 100m : 0;

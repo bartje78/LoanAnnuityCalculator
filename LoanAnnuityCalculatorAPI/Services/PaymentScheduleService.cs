@@ -47,8 +47,9 @@ namespace LoanAnnuityCalculatorAPI.Services
                 int capitalRepaymentMonths = loan.TenorMonths - loan.InterestOnlyMonths;
                 if (monthlyInterestRate > 0)
                 {
-                    annuityPayment = (loan.LoanAmount * monthlyInterestRate * (decimal)Math.Pow((double)(1 + monthlyInterestRate), capitalRepaymentMonths)) /
-                                   ((decimal)Math.Pow((double)(1 + monthlyInterestRate), capitalRepaymentMonths) - 1);
+                    // Use higher precision by calculating compound factor with decimal only
+                    decimal compoundFactor = DecimalPower(1 + monthlyInterestRate, capitalRepaymentMonths);
+                    annuityPayment = (loan.LoanAmount * monthlyInterestRate * compoundFactor) / (compoundFactor - 1);
                 }
                 else
                 {
@@ -71,7 +72,18 @@ namespace LoanAnnuityCalculatorAPI.Services
                 {
                     // Capital+interest phase
                     capitalComponent = annuityPayment - interestComponent;
+                    
+                    // On the last payment, adjust to pay off remaining loan exactly
+                    if (month == loan.TenorMonths && remainingLoan > 0)
+                    {
+                        capitalComponent = remainingLoan;
+                    }
                 }
+
+                // Round the components for storage/display
+                decimal roundedInterest = Math.Round(interestComponent, 2);
+                decimal roundedCapital = Math.Round(capitalComponent, 2);
+                decimal roundedTotal = Math.Round(interestComponent + capitalComponent, 2);
 
                 // Calculate due date (1st of each month following the start date)
                 var dueDate = loan.StartDate.AddMonths(month);
@@ -90,25 +102,30 @@ namespace LoanAnnuityCalculatorAPI.Services
                     daysLate = 0;
                 }
 
+                // Update remaining loan using rounded capital
+                remainingLoan -= roundedCapital;
+                
+                // Ensure last payment shows exactly zero remaining balance
+                decimal remainingBalance = month == loan.TenorMonths ? 0 : Math.Round(remainingLoan, 2);
+
                 var payment = new LoanPayment
                 {
                     LoanId = loanId,
                     PaymentMonth = month,
-                    InterestAmount = Math.Round(interestComponent, 2),
-                    CapitalAmount = Math.Round(capitalComponent, 2),
-                    TotalAmount = Math.Round(interestComponent + capitalComponent, 2),
+                    InterestAmount = roundedInterest,
+                    CapitalAmount = roundedCapital,
+                    TotalAmount = roundedTotal,
                     DueDate = dueDate,
                     PaymentDate = paymentDate,
                     PaymentStatus = paymentStatus,
                     DaysLate = daysLate,
-                    RemainingBalance = Math.Round(remainingLoan - capitalComponent, 2),
+                    RemainingBalance = remainingBalance,
                     Notes = paymentDate.HasValue ? "Generated payment record" : null,
                     CreatedDate = DateTime.UtcNow,
                     LastUpdatedDate = DateTime.UtcNow
                 };
 
                 payments.Add(payment);
-                remainingLoan -= capitalComponent;
 
                 // Ensure remaining loan doesn't go negative
                 if (remainingLoan < 0) remainingLoan = 0;
@@ -348,6 +365,30 @@ namespace LoanAnnuityCalculatorAPI.Services
 
             await _context.SaveChangesAsync();
             return updatedCount;
+        }
+
+        /// <summary>
+        /// Calculate decimal power without converting to double, maintaining precision
+        /// </summary>
+        private decimal DecimalPower(decimal baseValue, int exponent)
+        {
+            if (exponent == 0) return 1m;
+            if (exponent == 1) return baseValue;
+            
+            decimal result = 1m;
+            decimal multiplier = baseValue;
+            int exp = Math.Abs(exponent);
+            
+            // Use binary exponentiation for efficiency
+            while (exp > 0)
+            {
+                if (exp % 2 == 1)
+                    result *= multiplier;
+                multiplier *= multiplier;
+                exp /= 2;
+            }
+            
+            return exponent < 0 ? 1m / result : result;
         }
     }
 }

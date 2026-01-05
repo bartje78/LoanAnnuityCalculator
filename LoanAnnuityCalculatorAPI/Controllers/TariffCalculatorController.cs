@@ -11,13 +11,16 @@ namespace LoanAnnuityCalculatorAPI.Controllers
     public class TariffCalculatorController : ControllerBase
     {
         private readonly TariffCalculatorService _tariffCalculatorService;
+        private readonly TariffPdfGeneratorService _pdfGeneratorService;
         private readonly ILogger<TariffCalculatorController> _logger;
 
         public TariffCalculatorController(
             TariffCalculatorService tariffCalculatorService,
+            TariffPdfGeneratorService pdfGeneratorService,
             ILogger<TariffCalculatorController> logger)
         {
             _tariffCalculatorService = tariffCalculatorService;
+            _pdfGeneratorService = pdfGeneratorService;
             _logger = logger;
         }
 
@@ -84,6 +87,30 @@ namespace LoanAnnuityCalculatorAPI.Controllers
             {
                 _logger.LogError(ex, "Error calculating tariff");
                 return StatusCode(500, new { error = "An error occurred while calculating the tariff.", details = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Export tariff calculation to PDF
+        /// </summary>
+        /// <param name="request">PDF generation request with calculation results</param>
+        /// <returns>PDF file as byte array</returns>
+        [HttpPost("export-pdf")]
+        public ActionResult ExportToPdf([FromBody] TariffPdfRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Generating PDF for loan amount: {LoanAmount}", request.LoanAmount);
+
+                var pdfBytes = _pdfGeneratorService.GenerateTariffPdf(request);
+                var fileName = $"Tariefberekening_{DateTime.Now:yyyy-MM-dd}.pdf";
+
+                return File(pdfBytes, "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating PDF");
+                return StatusCode(500, new { error = "An error occurred while generating the PDF.", details = ex.Message });
             }
         }
     }

@@ -43,6 +43,7 @@ builder.Services.AddScoped<PaymentScheduleService>(); // Register the payment sc
 builder.Services.AddScoped<IStatusCalculationService, StatusCalculationService>(); // Register the status calculation service
 builder.Services.AddScoped<FractionalPaymentCalculator>(); // Register the fractional payment calculator
 builder.Services.AddScoped<TariffCalculatorService>(); // Register the tariff calculator service
+builder.Services.AddScoped<TariffPdfGeneratorService>(); // Register the PDF generator service
 builder.Services.AddScoped<MonteCarloSimulationService>(); // Register the Monte Carlo simulation service
 builder.Services.AddScoped<ShockGenerationService>(); // Register the shock generation service
 builder.Services.AddScoped<DebtorSimulationService>(); // Register the debtor simulation service
