@@ -93,12 +93,12 @@ namespace LoanAnnuityCalculatorAPI.Services
                                     {
                                         var rate = valueArray[0].GetDecimal();
                                         
-                                        // Extract maturity from series key (format: "0:0:0:0:X:0:0")
-                                        // Position 4 is the DATA_TYPE_FM dimension index
+                                        // Extract maturity from series key (format: "0:0:0:0:0:0:X")
+                                        // Position 6 is the DATA_TYPE_FM dimension index
                                         var keyParts = seriesKey.Split(':');
                                         _logger.LogInformation("Series key parts: {Parts}, Length: {Length}", string.Join(", ", keyParts), keyParts.Length);
                                         
-                                        if (keyParts.Length > 4 && int.TryParse(keyParts[4], out int maturityIndex))
+                                        if (keyParts.Length > 6 && int.TryParse(keyParts[6], out int maturityIndex))
                                         {
                                             _logger.LogInformation("Maturity index from key: {Index}, Total maturities: {Count}", maturityIndex, maturityIds.Count);
                                             
