@@ -63,17 +63,18 @@ namespace LoanAnnuityCalculatorAPI.Services
                     if (dataTypeDimension.ValueKind != JsonValueKind.Undefined)
                     {
                         var values = dataTypeDimension.GetProperty("values");
-                        var maturityMap = new Dictionary<string, string>(); // Map from id (SR_10Y) to name
+                        var maturityIds = new List<string>(); // Preserve order from ECB API
                         
                         foreach (var value in values.EnumerateArray())
                         {
                             var id = value.GetProperty("id").GetString();
-                            var name = value.GetProperty("name").GetString();
-                            if (id != null && name != null)
+                            if (id != null)
                             {
-                                maturityMap[id] = name;
+                                maturityIds.Add(id);
                             }
                         }
+
+                        _logger.LogInformation("Found {Count} maturities: {Maturities}", maturityIds.Count, string.Join(", ", maturityIds));
 
                         // Extract observation values
                         foreach (var series in observations.EnumerateObject())
@@ -95,8 +96,6 @@ namespace LoanAnnuityCalculatorAPI.Services
                                         var keyParts = seriesKey.Split(':');
                                         if (keyParts.Length > 4 && int.TryParse(keyParts[4], out int maturityIndex))
                                         {
-                                            // Look up the maturity id by iterating the map
-                                            var maturityIds = maturityMap.Keys.ToList();
                                             if (maturityIndex >= 0 && maturityIndex < maturityIds.Count)
                                             {
                                                 var maturityId = maturityIds[maturityIndex];
