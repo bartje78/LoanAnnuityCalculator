@@ -82,6 +82,8 @@ namespace LoanAnnuityCalculatorAPI.Services
                             var seriesKey = series.Name;
                             var seriesData = series.Value;
                             
+                            _logger.LogInformation("Processing series key: {SeriesKey}", seriesKey);
+                            
                             if (seriesData.TryGetProperty("observations", out var obs))
                             {
                                 foreach (var observation in obs.EnumerateObject())
@@ -94,13 +96,19 @@ namespace LoanAnnuityCalculatorAPI.Services
                                         // Extract maturity from series key (format: "0:0:0:0:X:0:0")
                                         // Position 4 is the DATA_TYPE_FM dimension index
                                         var keyParts = seriesKey.Split(':');
+                                        _logger.LogInformation("Series key parts: {Parts}, Length: {Length}", string.Join(", ", keyParts), keyParts.Length);
+                                        
                                         if (keyParts.Length > 4 && int.TryParse(keyParts[4], out int maturityIndex))
                                         {
+                                            _logger.LogInformation("Maturity index from key: {Index}, Total maturities: {Count}", maturityIndex, maturityIds.Count);
+                                            
                                             if (maturityIndex >= 0 && maturityIndex < maturityIds.Count)
                                             {
                                                 var maturityId = maturityIds[maturityIndex];
                                                 // Parse maturity id like "SR_3M" -> "3M", "SR_10Y" -> "10Y"
                                                 var parsedMaturity = ParseMaturityFromId(maturityId);
+                                                
+                                                _logger.LogInformation("Maturity ID: {Id}, Parsed: {Parsed}, Rate: {Rate}", maturityId, parsedMaturity, rate);
                                                 
                                                 result.Data.Add(new YieldCurveDataPoint
                                                 {
