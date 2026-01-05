@@ -63,15 +63,14 @@ namespace LoanAnnuityCalculatorAPI.Services
                     if (dataTypeDimension.ValueKind != JsonValueKind.Undefined)
                     {
                         var values = dataTypeDimension.GetProperty("values");
-                        var maturityMap = new Dictionary<string, string>();
+                        var maturityList = new List<string>();
                         
                         foreach (var value in values.EnumerateArray())
                         {
-                            var id = value.GetProperty("id").GetString();
                             var name = value.GetProperty("name").GetString();
-                            if (id != null && name != null)
+                            if (name != null)
                             {
-                                maturityMap[id] = name;
+                                maturityList.Add(name);
                             }
                         }
 
@@ -92,14 +91,12 @@ namespace LoanAnnuityCalculatorAPI.Services
                                         
                                         // Extract maturity from series key (format: "0:0:0:0:X:0:0")
                                         var keyParts = seriesKey.Split(':');
-                                        if (keyParts.Length > 4)
+                                        if (keyParts.Length > 4 && int.TryParse(keyParts[4], out int maturityIndex))
                                         {
-                                            var maturityIndex = keyParts[4];
-                                            var maturityKey = maturityMap.Keys.ElementAtOrDefault(int.Parse(maturityIndex));
-                                            if (maturityKey != null)
+                                            if (maturityIndex >= 0 && maturityIndex < maturityList.Count)
                                             {
                                                 // Parse maturity label like "Yield curve spot rate, 3-month maturity" -> "3M"
-                                                var maturityLabel = maturityMap[maturityKey];
+                                                var maturityLabel = maturityList[maturityIndex];
                                                 var parsedMaturity = ParseMaturityLabel(maturityLabel);
                                                 
                                                 result.Data.Add(new YieldCurveDataPoint
@@ -108,6 +105,7 @@ namespace LoanAnnuityCalculatorAPI.Services
                                                     Maturity = parsedMaturity,
                                                     Rate = rate
                                                 });
+                                            }
                                             }
                                         }
                                     }
