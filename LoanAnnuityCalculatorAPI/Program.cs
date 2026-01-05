@@ -202,7 +202,7 @@ using (var scope = app.Services.CreateScope())
 
     // Apply migrations to ensure the database schema is up-to-date
     Console.WriteLine("Applying migrations...");
-    // dbContext.Database.Migrate(); // Temporarily disabled
+    dbContext.Database.Migrate();
 
     // Seed roles
     Console.WriteLine("Seeding roles...");
