@@ -106,7 +106,6 @@ namespace LoanAnnuityCalculatorAPI.Services
                                                     Rate = rate
                                                 });
                                             }
-                                            }
                                         }
                                     }
                                 }
