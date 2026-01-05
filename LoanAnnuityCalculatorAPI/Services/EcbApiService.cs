@@ -98,10 +98,14 @@ namespace LoanAnnuityCalculatorAPI.Services
                                             var maturityKey = maturityMap.Keys.ElementAtOrDefault(int.Parse(maturityIndex));
                                             if (maturityKey != null)
                                             {
+                                                // Parse maturity label like "Yield curve spot rate, 3-month maturity" -> "3M"
+                                                var maturityLabel = maturityMap[maturityKey];
+                                                var parsedMaturity = ParseMaturityLabel(maturityLabel);
+                                                
                                                 result.Data.Add(new YieldCurveDataPoint
                                                 {
                                                     Date = result.LastUpdated,
-                                                    Maturity = maturityMap[maturityKey].Replace("Spot rate, ", ""),
+                                                    Maturity = parsedMaturity,
                                                     Rate = rate
                                                 });
                                             }
@@ -273,6 +277,36 @@ namespace LoanAnnuityCalculatorAPI.Services
                 DataSource = EURIBOR_DATASET,
                 WarningMessage = null
             };
+        }
+
+        /// <summary>
+        /// Parse ECB maturity labels to standard format
+        /// Examples: "Yield curve spot rate, 3-month maturity" -> "3M"
+        ///          "Yield curve spot rate, 10-year maturity" -> "10Y"
+        /// </summary>
+        private string ParseMaturityLabel(string label)
+        {
+            // Extract the numeric value and unit (month/year)
+            if (label.Contains("month"))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(label, @"(\d+)-month");
+                if (match.Success)
+                {
+                    return $"{match.Groups[1].Value}M";
+                }
+            }
+            else if (label.Contains("year"))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(label, @"(\d+)-year");
+                if (match.Success)
+                {
+                    return $"{match.Groups[1].Value}Y";
+                }
+            }
+            
+            // Fallback: return the label as-is
+            _logger.LogWarning("Could not parse maturity label: {Label}", label);
+            return label;
         }
     }
 
