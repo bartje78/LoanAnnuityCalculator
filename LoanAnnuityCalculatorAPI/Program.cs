@@ -17,6 +17,9 @@ using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load local settings file for development (not committed to Git)
+builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
 // Configure JWT Settings from appsettings.json
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();

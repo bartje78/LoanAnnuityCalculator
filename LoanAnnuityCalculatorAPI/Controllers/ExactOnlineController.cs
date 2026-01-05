@@ -14,10 +14,12 @@ namespace LoanAnnuityCalculatorAPI.Controllers
     public class ExactOnlineController : ControllerBase
     {
         private readonly ExactOnlineService _exactService;
+        private readonly IConfiguration _configuration;
 
-        public ExactOnlineController(ExactOnlineService exactService)
+        public ExactOnlineController(ExactOnlineService exactService, IConfiguration configuration)
         {
             _exactService = exactService;
+            _configuration = configuration;
         }
 
         [HttpGet("auth-url")]
@@ -45,13 +47,15 @@ namespace LoanAnnuityCalculatorAPI.Controllers
                 var token = await _exactService.ExchangeCodeForTokenAsync(code, tenantId);
                 
                 // Redirect back to the frontend with success
-                var frontendUrl = "http://localhost:4200/settings/integrations?exact=success";
+                var frontendBaseUrl = _configuration["FrontendUrl"] ?? "http://localhost:4200";
+                var frontendUrl = $"{frontendBaseUrl}/settings/integrations?exact=success";
                 return Redirect(frontendUrl);
             }
             catch (Exception ex)
             {
                 // Redirect to frontend with error
-                var frontendUrl = $"http://localhost:4200/settings/integrations?exact=error&message={Uri.EscapeDataString(ex.Message)}";
+                var frontendBaseUrl = _configuration["FrontendUrl"] ?? "http://localhost:4200";
+                var frontendUrl = $"{frontendBaseUrl}/settings/integrations?exact=error&message={Uri.EscapeDataString(ex.Message)}";
                 return Redirect(frontendUrl);
             }
         }

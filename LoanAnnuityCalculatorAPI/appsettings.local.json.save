@@ -1,0 +1,22 @@
+{
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git status
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git add -A && git commit -m "Configure Exact Online API integration with environment-aware settings" && git push
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git status
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git log --oneline -5
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator/LoanAnnuityCalculatorAPI" && dotnet ef migrations add AddExactOnlineFieldsToDebtor
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git add -A && git commit -m "Add Exact Online integration fields to debtor model" && git push
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculatorApp" && git add -A && git commit -m "Add Exact Online integration tab to debtor details" && git push
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculatorApp" && gh run list --limit 3
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && gh run list --limit 3
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git log --oneline -5
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculatorApp" && git log --oneline -5
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git add -A && git status
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && git commit -m "Add Exact Online integration: config, debtor fields, and migration" && git push origin master
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculatorApp" && git add -A && git commit -m "Add Exact Online integration tab and building depot menu" && git push origin master
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculator" && sleep 3 && gh run list --limit 1
+cd "/Users/bartkoolhaas/Visual Studio Projecten/LoanAnnuityCalculatorApp" && sleep 3 && gh run list --limit 1
+  "ExactOnline": {
+    "ClientId": "YOUR_CLIENT_ID_HERE",
+    "ClientSecret": "YOUR_CLIENT_SECRET_HERE"
+  }
+}

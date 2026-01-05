@@ -112,6 +112,10 @@ yarn-error.log*
 
 # Azure settings with secrets
 appsettings-azure.json
+appsettings.local.json
+
+# User secrets
+secrets.json
 
 # Deployment logs
 backend-logs.zip

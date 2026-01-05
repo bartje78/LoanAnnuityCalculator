@@ -63,6 +63,13 @@ namespace LoanAnnuityCalculatorAPI.Models.Debtor
         public string Signatory3Name { get; set; } = string.Empty;
         public string Signatory3Function { get; set; } = string.Empty;
 
+        // Exact Online Integration fields
+        public string? ExactDebtorId { get; set; }
+        public string? ExactGLInterest { get; set; }
+        public string? ExactGLRedemption { get; set; }
+        public string? ExactArticleCodeInterest { get; set; }
+        public string? ExactArticleCodeRedemption { get; set; }
+
         // Navigation properties
         public ICollection<LoanAnnuityCalculatorAPI.Models.Loan.Loan> Loans { get; set; } = new List<LoanAnnuityCalculatorAPI.Models.Loan.Loan>();
         public ICollection<DebtorBalanceSheet> BalanceSheets { get; set; } = new List<DebtorBalanceSheet>();
