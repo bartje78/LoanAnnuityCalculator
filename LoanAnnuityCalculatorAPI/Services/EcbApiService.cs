@@ -63,14 +63,15 @@ namespace LoanAnnuityCalculatorAPI.Services
                     if (dataTypeDimension.ValueKind != JsonValueKind.Undefined)
                     {
                         var values = dataTypeDimension.GetProperty("values");
-                        var maturityList = new List<string>();
+                        var maturityMap = new Dictionary<string, string>(); // Map from id (SR_10Y) to name
                         
                         foreach (var value in values.EnumerateArray())
                         {
+                            var id = value.GetProperty("id").GetString();
                             var name = value.GetProperty("name").GetString();
-                            if (name != null)
+                            if (id != null && name != null)
                             {
-                                maturityList.Add(name);
+                                maturityMap[id] = name;
                             }
                         }
 
@@ -90,14 +91,17 @@ namespace LoanAnnuityCalculatorAPI.Services
                                         var rate = valueArray[0].GetDecimal();
                                         
                                         // Extract maturity from series key (format: "0:0:0:0:X:0:0")
+                                        // Position 4 is the DATA_TYPE_FM dimension index
                                         var keyParts = seriesKey.Split(':');
                                         if (keyParts.Length > 4 && int.TryParse(keyParts[4], out int maturityIndex))
                                         {
-                                            if (maturityIndex >= 0 && maturityIndex < maturityList.Count)
+                                            // Look up the maturity id by iterating the map
+                                            var maturityIds = maturityMap.Keys.ToList();
+                                            if (maturityIndex >= 0 && maturityIndex < maturityIds.Count)
                                             {
-                                                // Parse maturity label like "Yield curve spot rate, 3-month maturity" -> "3M"
-                                                var maturityLabel = maturityList[maturityIndex];
-                                                var parsedMaturity = ParseMaturityLabel(maturityLabel);
+                                                var maturityId = maturityIds[maturityIndex];
+                                                // Parse maturity id like "SR_3M" -> "3M", "SR_10Y" -> "10Y"
+                                                var parsedMaturity = ParseMaturityFromId(maturityId);
                                                 
                                                 result.Data.Add(new YieldCurveDataPoint
                                                 {
@@ -277,7 +281,23 @@ namespace LoanAnnuityCalculatorAPI.Services
         }
 
         /// <summary>
-        /// Parse ECB maturity labels to standard format
+        /// Parse ECB maturity ID to standard format
+        /// Examples: "SR_3M" -> "3M", "SR_10Y" -> "10Y"
+        /// </summary>
+        private string ParseMaturityFromId(string id)
+        {
+            // Remove "SR_" prefix to get the maturity
+            if (id.StartsWith("SR_"))
+            {
+                return id.Substring(3);
+            }
+            
+            _logger.LogWarning("Could not parse maturity id: {Id}", id);
+            return id;
+        }
+
+        /// <summary>
+        /// Parse ECB maturity labels to standard format (kept for backwards compatibility)
         /// Examples: "Yield curve spot rate, 3-month maturity" -> "3M"
         ///          "Yield curve spot rate, 10-year maturity" -> "10Y"
         /// </summary>
